@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { X } from "lucide-react";
+import { useAuth } from "../hooks/use-auth";
 
 interface LoginModalProps {
   isOpen: boolean;
@@ -10,6 +11,10 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const { fetchUser } = useAuth();
 
   if (!isOpen) return null;
 
@@ -18,9 +23,38 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
     console.log("Google login clicked");
   };
 
-  const handleLogin = () => {
-    // Login logic would go here
-    console.log("Login clicked with email:", email, "password:", password);
+  const handleLogin = async () => {
+    setLoading(true);
+    setError("");
+    setSuccess("");
+    try {
+      const res = await fetch("/api/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setError(data.message || "Login failed");
+      } else {
+        // Store JWT token
+        if (rememberMe) {
+          localStorage.setItem("token", data.token);
+        } else {
+          sessionStorage.setItem("token", data.token);
+        }
+        await fetchUser();
+        setSuccess("Login successful!");
+        setTimeout(() => {
+          setSuccess("");
+          onClose();
+        }, 1200);
+      }
+    } catch (err) {
+      setError("Network error. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -122,12 +156,22 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
             </label>
           </div>
 
+          {/* Error Message */}
+          {error && (
+            <div className="mb-4 text-red-600 text-center font-bold">{error}</div>
+          )}
+          {/* Success Message */}
+          {success && (
+            <div className="mb-4 text-green-600 text-center font-bold">{success}</div>
+          )}
+
           {/* Login Button */}
           <button
             onClick={handleLogin}
-            className="w-full py-4 bg-brand-orange-light text-white font-bold text-lg rounded-full hover:bg-brand-orange transition-colors"
+            className="w-full py-4 bg-brand-orange-light text-white font-bold text-lg rounded-full hover:bg-brand-orange transition-colors disabled:opacity-60"
+            disabled={loading}
           >
-            Log in
+            {loading ? "Logging in..." : "Log in"}
           </button>
         </div>
       </div>

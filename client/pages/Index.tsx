@@ -11,6 +11,7 @@ import {
 import { Link, useNavigate } from "react-router-dom";
 import LoginModal from "../components/LoginModal";
 import RegisterModal from "../components/RegisterModal";
+import { useAuth } from "../hooks/use-auth";
 
 const bookCovers = [
   {
@@ -72,6 +73,7 @@ export default function Index() {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
   const navigate = useNavigate();
+  const { user, logout, loading } = useAuth();
 
   const handleLoginClick = () => {
     setIsLoginModalOpen(true);
@@ -137,19 +139,46 @@ export default function Index() {
 
           {/* Auth buttons */}
           <div className="flex items-center gap-3">
-            <button
-              onClick={handleRegisterClick}
-              className="px-4 py-2 border border-brand-border-light rounded-full font-abhaya text-base hover:bg-gray-50 transition-colors"
+            {loading ? null : user ? (
+              <>
+                <button
+                  onClick={() => navigate("/my-account")}
+                  className="flex items-center gap-2 px-4 py-2 border border-brand-border-light rounded-full font-abhaya text-base bg-gray-50 hover:bg-gray-100 transition-colors"
+                >
+                  <User size={20} className="mr-2" />
+                  <span>{user.name}</span>
+                </button>
+                <button
+                  onClick={logout}
+                  className="px-4 py-2 border border-brand-border-light rounded-full font-abhaya text-base bg-red-500 text-white hover:bg-red-600 transition-colors"
+                >
+                  Logout
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={handleRegisterClick}
+                  className="px-4 py-2 border border-brand-border-light rounded-full font-abhaya text-base hover:bg-gray-50 transition-colors"
+                >
+                  Register
+                </button>
+                <button
+                  onClick={handleLoginClick}
+                  className="flex items-center gap-2 px-4 py-2 bg-brand-orange text-white rounded-full font-abhaya text-base hover:bg-brand-orange-light transition-colors"
+                >
+                  <User size={24} />
+                  Log in
+                </button>
+              </>
+            )}
+            <Link
+              to="/settings"
+              className="px-4 py-2 border border-brand-border-light rounded-full font-abhaya text-base hover:bg-brand-orange hover:text-white transition-colors flex items-center justify-center"
+              style={{ minWidth: '48px', minHeight: '48px', width: '48px', height: '48px', padding: 0 }}
             >
-              Register
-            </button>
-            <button
-              onClick={handleLoginClick}
-              className="flex items-center gap-2 px-4 py-2 bg-brand-orange text-white rounded-full font-abhaya text-base hover:bg-brand-orange-light transition-colors"
-            >
-              <User size={24} />
-              Log in
-            </button>
+              <img src="/settings.png" alt="Settings" className="w-6 h-6" />
+            </Link>
           </div>
         </div>
       </div>

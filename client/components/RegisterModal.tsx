@@ -7,7 +7,11 @@ interface RegisterModalProps {
 }
 
 export default function RegisterModal({ isOpen, onClose }: RegisterModalProps) {
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   if (!isOpen) return null;
 
@@ -16,9 +20,26 @@ export default function RegisterModal({ isOpen, onClose }: RegisterModalProps) {
     console.log("Google login clicked");
   };
 
-  const handleCreateAccount = () => {
-    // Account creation logic would go here
-    console.log("Create account clicked with email:", email);
+  const handleCreateAccount = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch("/api/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, email, password }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setError(data.message || "Registration failed");
+      } else {
+        onClose();
+      }
+    } catch (err) {
+      setError("Network error. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -79,8 +100,22 @@ export default function RegisterModal({ isOpen, onClose }: RegisterModalProps) {
             <div className="flex-1 h-px bg-black"></div>
           </div>
 
+          {/* Name Input */}
+          <div className="mb-6">
+            <label className="block text-black font-bold text-lg mb-2">
+              Name <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Enter your name"
+              className="w-full px-6 py-3 border border-gray-400 rounded-full placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-orange focus:border-transparent"
+            />
+          </div>
+
           {/* Email Input */}
-          <div className="mb-8">
+          <div className="mb-6">
             <label className="block text-black font-bold text-lg mb-2">
               Email Address <span className="text-red-500">*</span>
             </label>
@@ -93,12 +128,32 @@ export default function RegisterModal({ isOpen, onClose }: RegisterModalProps) {
             />
           </div>
 
+          {/* Password Input */}
+          <div className="mb-8">
+            <label className="block text-black font-bold text-lg mb-2">
+              Password <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Enter a password"
+              className="w-full px-6 py-3 border border-gray-400 rounded-full placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-orange focus:border-transparent"
+            />
+          </div>
+
+          {/* Error Message */}
+          {error && (
+            <div className="mb-4 text-red-600 text-center font-bold">{error}</div>
+          )}
+
           {/* Create Account Button */}
           <button
             onClick={handleCreateAccount}
-            className="w-full py-4 bg-brand-orange-light text-white font-bold text-lg rounded-full hover:bg-brand-orange transition-colors"
+            className="w-full py-4 bg-brand-orange-light text-white font-bold text-lg rounded-full hover:bg-brand-orange transition-colors disabled:opacity-60"
+            disabled={loading}
           >
-            Create account
+            {loading ? "Creating..." : "Create account"}
           </button>
         </div>
       </div>
