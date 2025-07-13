@@ -3,7 +3,7 @@ import cors from "cors";
 import { handleDemo } from "./routes/demo";
 import { getProfile, updateProfile, changePassword, deleteProfile } from "./routes/profile";
 import mongoose from "mongoose";
-import { register, login, forgotPassword, resetPassword } from "./routes/auth";
+import { register, login, forgotPassword, resetPassword, getUserSessions, revokeSession, revokeAllSessions, refreshSession, verifyTokenWithSession } from "./routes/auth";
 
 export function createServer() {
   const app = express();
@@ -37,16 +37,22 @@ export function createServer() {
   });
 
   app.get("/api/demo", handleDemo);
-  app.get("/api/profile", getProfile);
-  app.put("/api/profile", updateProfile);
-  app.post("/api/profile/change-password", changePassword);
-  app.delete("/api/profile", deleteProfile);
+  app.get("/api/profile", verifyTokenWithSession, getProfile);
+  app.put("/api/profile", verifyTokenWithSession, updateProfile);
+  app.post("/api/profile/change-password", verifyTokenWithSession, changePassword);
+  app.delete("/api/profile", verifyTokenWithSession, deleteProfile);
 
   // Auth routes
   app.post("/api/register", register);
   app.post("/api/login", login);
   app.post("/api/forgot-password", forgotPassword);
   app.post("/api/reset-password", resetPassword);
+
+  // Session management routes
+  app.get("/api/sessions", verifyTokenWithSession, getUserSessions);
+  app.delete("/api/sessions/:sessionId", verifyTokenWithSession, revokeSession);
+  app.delete("/api/sessions", verifyTokenWithSession, revokeAllSessions);
+  app.post("/api/sessions/refresh", verifyTokenWithSession, refreshSession);
 
   return app;
 }

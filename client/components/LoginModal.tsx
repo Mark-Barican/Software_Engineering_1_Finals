@@ -54,13 +54,18 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
           setSuccess("");
           onClose();
           
-          // Handle post-login navigation
+          // Handle post-login navigation and refresh
           if (onLoginSuccess) {
             onLoginSuccess();
           } else {
             // Default navigation - redirect to My Account page
             navigate("/my-account");
           }
+          
+          // Refresh the page after successful login
+          setTimeout(() => {
+            window.location.reload();
+          }, 500);
         }, 1200);
       }
     } catch (err) {
@@ -71,7 +76,7 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black bg-opacity-50 pt-16 overflow-y-auto">
       <div className="bg-white rounded-lg w-full max-w-md mx-4 relative">
         {/* Close button */}
         <button
@@ -181,10 +186,17 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
           {/* Login Button */}
           <button
             onClick={handleLogin}
-            className="w-full py-4 bg-brand-orange-light text-white font-bold text-lg rounded-full hover:bg-brand-orange transition-colors disabled:opacity-60"
+            className="w-full py-4 bg-brand-orange-light text-white font-bold text-lg rounded-full hover:bg-brand-orange transition-all duration-200 disabled:opacity-60 hover:scale-105 disabled:hover:scale-100"
             disabled={loading}
           >
-            {loading ? "Logging in..." : "Log in"}
+            {loading ? (
+              <div className="flex items-center justify-center gap-2">
+                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                <span>Logging in...</span>
+              </div>
+            ) : (
+              "Log in"
+            )}
           </button>
 
           {/* Forgot Password Link */}

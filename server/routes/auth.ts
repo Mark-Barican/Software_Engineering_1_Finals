@@ -4,6 +4,55 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
 
+// Helper function to parse user agent and extract device info
+function parseUserAgent(userAgent: string, ipAddress: string) {
+  const deviceInfo = {
+    browser: "Unknown",
+    os: "Unknown", 
+    device: "Unknown",
+    ipAddress: ipAddress || "Unknown"
+  };
+
+  if (userAgent) {
+    // Browser detection
+    if (userAgent.includes("Chrome") && !userAgent.includes("Edg")) {
+      deviceInfo.browser = "Chrome";
+    } else if (userAgent.includes("Firefox")) {
+      deviceInfo.browser = "Firefox";
+    } else if (userAgent.includes("Safari") && !userAgent.includes("Chrome")) {
+      deviceInfo.browser = "Safari";
+    } else if (userAgent.includes("Edg")) {
+      deviceInfo.browser = "Edge";
+    } else if (userAgent.includes("Opera")) {
+      deviceInfo.browser = "Opera";
+    }
+
+    // OS detection
+    if (userAgent.includes("Windows")) {
+      deviceInfo.os = "Windows";
+    } else if (userAgent.includes("Mac OS")) {
+      deviceInfo.os = "macOS";
+    } else if (userAgent.includes("Linux")) {
+      deviceInfo.os = "Linux";
+    } else if (userAgent.includes("Android")) {
+      deviceInfo.os = "Android";
+    } else if (userAgent.includes("iOS")) {
+      deviceInfo.os = "iOS";
+    }
+
+    // Device detection
+    if (userAgent.includes("Mobile")) {
+      deviceInfo.device = "Mobile";
+    } else if (userAgent.includes("Tablet")) {
+      deviceInfo.device = "Tablet";
+    } else {
+      deviceInfo.device = "Desktop";
+    }
+  }
+
+  return deviceInfo;
+}
+
 // User schema and model
 const userSchema = new mongoose.Schema({
   name: String,
@@ -16,7 +65,20 @@ const userSchema = new mongoose.Schema({
   },
   resetToken: String,
   resetTokenExpiry: Date,
-});
+  sessions: [{
+    sessionId: String,
+    deviceInfo: {
+      browser: String,
+      os: String,
+      device: String,
+      ipAddress: String,
+    },
+    createdAt: { type: Date, default: Date.now },
+    lastActivity: { type: Date, default: Date.now },
+    isActive: { type: Boolean, default: true },
+  }],
+  lastLogin: Date,
+}, { timestamps: true });
 const User = mongoose.model("User", userSchema);
 
 const JWT_SECRET = process.env.JWT_SECRET || "dev_secret";
@@ -70,10 +132,40 @@ export async function login(req: Request, res: Response) {
     if (!valid) {
       return res.status(400).json({ success: false, message: "Invalid credentials" });
     }
-    // Issue JWT
-    const token = jwt.sign({ userId: user._id }, JWT_SECRET, { expiresIn: "7d" });
-    console.log("🎫 Token generated successfully");
-    res.json({ success: true, token, user: { id: user._id, name: user.name, email: user.email } });
+    // Create new session
+    const sessionId = crypto.randomBytes(32).toString('hex');
+    const userAgent = req.headers['user-agent'] || '';
+    const ipAddress = req.ip || req.connection.remoteAddress || '';
+    const deviceInfo = parseUserAgent(userAgent, ipAddress);
+    
+    // Issue JWT with session ID
+    const token = jwt.sign({ userId: user._id, sessionId }, JWT_SECRET, { expiresIn: "7d" });
+    console.log("Token generated successfully");
+    
+    // Add session to user
+    await User.findByIdAndUpdate(user._id, {
+      $push: {
+        sessions: {
+          sessionId,
+          deviceInfo,
+          createdAt: new Date(),
+          lastActivity: new Date(),
+          isActive: true
+        }
+      },
+      lastLogin: new Date()
+    });
+    
+    res.json({ 
+      success: true, 
+      token, 
+      user: { 
+        id: user._id, 
+        name: user.name, 
+        email: user.email,
+        preferences: user.preferences 
+      } 
+    });
   } catch (err) {
     console.error("Login error:", err);
     res.status(500).json({ success: false, message: "Login failed", error: err });
@@ -158,5 +250,114 @@ export async function resetPassword(req: Request, res: Response) {
   }
 }
 
+// Middleware to verify JWT token and extract session info
+function verifyTokenWithSession(req: Request, res: Response, next: Function) {
+  const auth = req.headers.authorization;
+  if (!auth || !auth.startsWith("Bearer ")) {
+    return res.status(401).json({ message: "Missing or invalid token" });
+  }
+  const token = auth.split(" ")[1];
+  try {
+    const payload = jwt.verify(token, JWT_SECRET) as { userId: string; sessionId: string };
+    (req as any).userId = payload.userId;
+    (req as any).sessionId = payload.sessionId;
+    next();
+  } catch (err) {
+    return res.status(401).json({ message: "Invalid or expired token" });
+  }
+}
+
+// GET /api/sessions - Get all active sessions for the user
+export async function getUserSessions(req: Request, res: Response) {
+  try {
+    const user = await User.findById((req as any).userId);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const activeSessions = user.sessions.filter(session => session.isActive);
+    const currentSessionId = (req as any).sessionId;
+
+    const sessionsData = activeSessions.map(session => ({
+      sessionId: session.sessionId,
+      deviceInfo: session.deviceInfo,
+      createdAt: session.createdAt,
+      lastActivity: session.lastActivity,
+      isCurrent: session.sessionId === currentSessionId
+    }));
+
+    res.json({ success: true, sessions: sessionsData });
+  } catch (err) {
+    console.error("Get sessions error:", err);
+    res.status(500).json({ message: "Internal server error" });
+  }
+}
+
+// DELETE /api/sessions/:sessionId - Revoke a specific session
+export async function revokeSession(req: Request, res: Response) {
+  try {
+    const { sessionId } = req.params;
+    const userId = (req as any).userId;
+    const currentSessionId = (req as any).sessionId;
+
+    if (sessionId === currentSessionId) {
+      return res.status(400).json({ message: "Cannot revoke current session" });
+    }
+
+    const result = await User.findByIdAndUpdate(
+      userId,
+      { $set: { "sessions.$[elem].isActive": false } },
+      { arrayFilters: [{ "elem.sessionId": sessionId }], new: true }
+    );
+
+    if (!result) {
+      return res.status(404).json({ message: "Session not found" });
+    }
+
+    res.json({ success: true, message: "Session revoked successfully" });
+  } catch (err) {
+    console.error("Revoke session error:", err);
+    res.status(500).json({ message: "Internal server error" });
+  }
+}
+
+// DELETE /api/sessions - Revoke all sessions except current one
+export async function revokeAllSessions(req: Request, res: Response) {
+  try {
+    const userId = (req as any).userId;
+    const currentSessionId = (req as any).sessionId;
+
+    await User.findByIdAndUpdate(
+      userId,
+      { $set: { "sessions.$[elem].isActive": false } },
+      { arrayFilters: [{ "elem.sessionId": { $ne: currentSessionId } }] }
+    );
+
+    res.json({ success: true, message: "All other sessions revoked successfully" });
+  } catch (err) {
+    console.error("Revoke all sessions error:", err);
+    res.status(500).json({ message: "Internal server error" });
+  }
+}
+
+// POST /api/sessions/refresh - Update session activity
+export async function refreshSession(req: Request, res: Response) {
+  try {
+    const userId = (req as any).userId;
+    const sessionId = (req as any).sessionId;
+
+    await User.findByIdAndUpdate(
+      userId,
+      { $set: { "sessions.$[elem].lastActivity": new Date() } },
+      { arrayFilters: [{ "elem.sessionId": sessionId }] }
+    );
+
+    res.json({ success: true, message: "Session refreshed" });
+  } catch (err) {
+    console.error("Refresh session error:", err);
+    res.status(500).json({ message: "Internal server error" });
+  }
+}
+
 // Export User model for use in profile endpoints
-export { User }; 
+export { User, verifyTokenWithSession }; 

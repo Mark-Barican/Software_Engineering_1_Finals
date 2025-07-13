@@ -9,6 +9,8 @@ import ProfileEditForm from "../components/ProfileEditForm";
 import PasswordChangeForm from "../components/PasswordChangeForm";
 import UserPreferencesForm from "../components/UserPreferencesForm";
 import AccountDeletionForm from "../components/AccountDeletionForm";
+import SessionManagement from "../components/SessionManagement";
+import { FadeIn, StaggeredFadeIn } from "../components/PageTransition";
 import { 
   User, 
   Settings, 
@@ -19,7 +21,8 @@ import {
   Bell, 
   Mail, 
   Calendar,
-  Activity
+  Activity,
+  Monitor
 } from "lucide-react";
 
 export default function MyAccount() {
@@ -117,8 +120,9 @@ export default function MyAccount() {
       <div className="max-w-7xl mx-auto px-6 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
           {/* Sidebar - User Overview */}
-          <div className="lg:col-span-1">
-            <Card>
+          <FadeIn delay={100}>
+            <div className="lg:col-span-1">
+              <Card>
               <CardHeader className="text-center">
                 <div className="w-20 h-20 bg-brand-orange rounded-full flex items-center justify-center mx-auto mb-4">
                   <User className="w-10 h-10 text-white" />
@@ -151,12 +155,14 @@ export default function MyAccount() {
                 </div>
               </CardContent>
             </Card>
-          </div>
+            </div>
+          </FadeIn>
 
           {/* Main Content Area */}
-          <div className="lg:col-span-3">
+          <FadeIn delay={200}>
+            <div className="lg:col-span-3">
             <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <TabsList className="grid w-full grid-cols-4">
+              <TabsList className="grid w-full grid-cols-5">
                 <TabsTrigger value="profile" className="flex items-center gap-2">
                   <User className="w-4 h-4" />
                   Profile
@@ -168,6 +174,10 @@ export default function MyAccount() {
                 <TabsTrigger value="preferences" className="flex items-center gap-2">
                   <Settings className="w-4 h-4" />
                   Preferences
+                </TabsTrigger>
+                <TabsTrigger value="sessions" className="flex items-center gap-2">
+                  <Monitor className="w-4 h-4" />
+                  Sessions
                 </TabsTrigger>
                 <TabsTrigger value="account" className="flex items-center gap-2">
                   <Activity className="w-4 h-4" />
@@ -273,6 +283,22 @@ export default function MyAccount() {
                 </div>
               </TabsContent>
 
+              {/* Sessions Tab */}
+              <TabsContent value="sessions" className="space-y-6">
+                <div className="space-y-4">
+                  <div>
+                    <h2 className="text-2xl font-abhaya font-bold text-brand-text-primary">
+                      Session Management
+                    </h2>
+                    <p className="text-brand-text-secondary font-actor">
+                      View and manage your active sessions across all devices
+                    </p>
+                  </div>
+                  
+                  <SessionManagement />
+                </div>
+              </TabsContent>
+
               {/* Account Tab */}
               <TabsContent value="account" className="space-y-6">
                 <div className="space-y-4">
@@ -357,7 +383,8 @@ export default function MyAccount() {
                 </div>
               </TabsContent>
             </Tabs>
-          </div>
+            </div>
+          </FadeIn>
         </div>
       </div>
     </div>

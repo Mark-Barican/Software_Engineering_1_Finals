@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
-import { User } from "./auth";
+import { User, verifyTokenWithSession } from "./auth";
 
 const JWT_SECRET = process.env.JWT_SECRET || "dev_secret";
 
@@ -21,17 +21,31 @@ function verifyToken(req: Request, res: Response, next: Function) {
   }
 }
 
+// Helper function to update session activity
+async function updateSessionActivity(userId: string, sessionId: string) {
+  try {
+    await User.findByIdAndUpdate(
+      userId,
+      { $set: { "sessions.$[elem].lastActivity": new Date() } },
+      { arrayFilters: [{ "elem.sessionId": sessionId }] }
+    );
+  } catch (err) {
+    console.error("Session activity update error:", err);
+  }
+}
+
 // GET /api/profile
 export async function getProfile(req: Request, res: Response) {
-  const auth = req.headers.authorization;
-  if (!auth || !auth.startsWith("Bearer ")) {
-    return res.status(401).json({ message: "Missing or invalid token" });
-  }
-  const token = auth.split(" ")[1];
   try {
-    const payload = jwt.verify(token, JWT_SECRET) as { userId: string };
-    const user = await User.findById(payload.userId).lean();
+    const userId = (req as any).userId;
+    const sessionId = (req as any).sessionId;
+    
+    const user = await User.findById(userId).lean();
     if (!user) return res.status(404).json({ message: "User not found" });
+    
+    // Update session activity
+    await updateSessionActivity(userId, sessionId);
+    
     res.json({ 
       id: user._id, 
       name: user.name, 
@@ -39,20 +53,16 @@ export async function getProfile(req: Request, res: Response) {
       preferences: user.preferences 
     });
   } catch (err) {
-    res.status(401).json({ message: "Invalid or expired token" });
+    console.error("Get profile error:", err);
+    res.status(500).json({ message: "Internal server error" });
   }
 }
 
 // PUT /api/profile
 export async function updateProfile(req: Request, res: Response) {
-  const auth = req.headers.authorization;
-  if (!auth || !auth.startsWith("Bearer ")) {
-    return res.status(401).json({ message: "Missing or invalid token" });
-  }
-  const token = auth.split(" ")[1];
-  
   try {
-    const payload = jwt.verify(token, JWT_SECRET) as { userId: string };
+    const userId = (req as any).userId;
+    const sessionId = (req as any).sessionId;
     const { name, email, preferences } = req.body;
     
     // Validate input
@@ -63,7 +73,7 @@ export async function updateProfile(req: Request, res: Response) {
     // Check if email is already taken by another user
     const existingUser = await User.findOne({ 
       email, 
-      _id: { $ne: payload.userId } 
+      _id: { $ne: userId } 
     });
     if (existingUser) {
       return res.status(400).json({ message: "Email already in use" });
@@ -71,7 +81,7 @@ export async function updateProfile(req: Request, res: Response) {
     
     // Update user profile
     const updatedUser = await User.findByIdAndUpdate(
-      payload.userId,
+      userId,
       { 
         name, 
         email, 
@@ -83,6 +93,9 @@ export async function updateProfile(req: Request, res: Response) {
     if (!updatedUser) {
       return res.status(404).json({ message: "User not found" });
     }
+    
+    // Update session activity
+    await updateSessionActivity(userId, sessionId);
     
     res.json({ 
       success: true, 
@@ -102,14 +115,9 @@ export async function updateProfile(req: Request, res: Response) {
 
 // POST /api/profile/change-password
 export async function changePassword(req: Request, res: Response) {
-  const auth = req.headers.authorization;
-  if (!auth || !auth.startsWith("Bearer ")) {
-    return res.status(401).json({ message: "Missing or invalid token" });
-  }
-  const token = auth.split(" ")[1];
-  
   try {
-    const payload = jwt.verify(token, JWT_SECRET) as { userId: string };
+    const userId = (req as any).userId;
+    const sessionId = (req as any).sessionId;
     const { currentPassword, newPassword } = req.body;
     
     // Validate input
@@ -122,7 +130,7 @@ export async function changePassword(req: Request, res: Response) {
     }
     
     // Find user and verify current password
-    const user = await User.findById(payload.userId);
+    const user = await User.findById(userId);
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
@@ -134,7 +142,10 @@ export async function changePassword(req: Request, res: Response) {
     
     // Hash new password and update
     const newPasswordHash = await bcrypt.hash(newPassword, 10);
-    await User.findByIdAndUpdate(payload.userId, { passwordHash: newPasswordHash });
+    await User.findByIdAndUpdate(userId, { passwordHash: newPasswordHash });
+    
+    // Update session activity
+    await updateSessionActivity(userId, sessionId);
     
     res.json({ 
       success: true, 
@@ -148,14 +159,9 @@ export async function changePassword(req: Request, res: Response) {
 
 // DELETE /api/profile
 export async function deleteProfile(req: Request, res: Response) {
-  const auth = req.headers.authorization;
-  if (!auth || !auth.startsWith("Bearer ")) {
-    return res.status(401).json({ message: "Missing or invalid token" });
-  }
-  const token = auth.split(" ")[1];
-  
   try {
-    const payload = jwt.verify(token, JWT_SECRET) as { userId: string };
+    const userId = (req as any).userId;
+    const sessionId = (req as any).sessionId;
     const { password } = req.body;
     
     // Validate input
@@ -164,7 +170,7 @@ export async function deleteProfile(req: Request, res: Response) {
     }
     
     // Find user and verify password
-    const user = await User.findById(payload.userId);
+    const user = await User.findById(userId);
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
@@ -175,7 +181,7 @@ export async function deleteProfile(req: Request, res: Response) {
     }
     
     // Delete user account
-    await User.findByIdAndDelete(payload.userId);
+    await User.findByIdAndDelete(userId);
     
     res.json({ 
       success: true, 

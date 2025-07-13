@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
 
 interface User {
   id: string;
@@ -15,9 +15,12 @@ interface AuthContextType {
   user: User | null;
   token: string | null;
   loading: boolean;
+  initialLoading: boolean;
   login: (token: string) => void;
   logout: () => void;
   fetchUser: () => Promise<void>;
+  refreshSession: () => Promise<void>;
+  isAuthenticated: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -25,7 +28,8 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
 
   // Load token from storage on mount
   useEffect(() => {
@@ -33,7 +37,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (t) {
       setToken(t);
     }
-    setLoading(false);
+    setInitialLoading(false);
   }, []);
 
   // Fetch user info if token changes
@@ -46,27 +50,52 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // eslint-disable-next-line
   }, [token]);
 
-  const fetchUser = async () => {
+  const fetchUser = useCallback(async () => {
     if (!token) return;
+    setLoading(true);
     try {
       const res = await fetch("/api/profile", {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
         const data = await res.json();
-        setUser({ id: data.id || data._id, name: data.name, email: data.email });
+        setUser({ 
+          id: data.id || data._id, 
+          name: data.name, 
+          email: data.email, 
+          preferences: data.preferences 
+        });
       } else {
         setUser(null);
+        if (res.status === 401) {
+          // Token expired, clear storage
+          localStorage.removeItem("token");
+          sessionStorage.removeItem("token");
+          setToken(null);
+        }
       }
     } catch {
       setUser(null);
+    } finally {
+      setLoading(false);
     }
-  };
+  }, [token]);
+
+  const refreshSession = useCallback(async () => {
+    if (!token) return;
+    try {
+      await fetch("/api/sessions/refresh", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    } catch (error) {
+      console.error("Failed to refresh session:", error);
+    }
+  }, [token]);
 
   const login = (newToken: string) => {
     setToken(newToken);
     localStorage.setItem("token", newToken);
-    fetchUser();
   };
 
   const logout = () => {
@@ -76,8 +105,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     sessionStorage.removeItem("token");
   };
 
+  const isAuthenticated = !!user && !!token;
+
+  // Auto-refresh session every 5 minutes
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    
+    const interval = setInterval(() => {
+      refreshSession();
+    }, 5 * 60 * 1000); // 5 minutes
+
+    return () => clearInterval(interval);
+  }, [isAuthenticated, refreshSession]);
+
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, logout, fetchUser }}>
+    <AuthContext.Provider value={{ 
+      user, 
+      token, 
+      loading, 
+      initialLoading, 
+      login, 
+      logout, 
+      fetchUser, 
+      refreshSession, 
+      isAuthenticated 
+    }}>
       {children}
     </AuthContext.Provider>
   );

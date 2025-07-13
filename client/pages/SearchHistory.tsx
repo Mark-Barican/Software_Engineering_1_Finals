@@ -4,6 +4,9 @@ import { Search, User, HelpCircle, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useAuth } from "../hooks/use-auth";
+import LoginModal from "../components/LoginModal";
+import RegisterModal from "../components/RegisterModal";
 
 // Mock history data matching the Figma design
 const historyData = [
@@ -124,8 +127,11 @@ const SearchIcon = () => (
 );
 
 export default function SearchHistory() {
+  const { user, loading } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [historyEntries, setHistoryEntries] = useState(historyData);
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
 
   const handleEntryCheck = (sectionIndex: number, entryIndex: number) => {
     const newEntries = [...historyEntries];
@@ -134,21 +140,30 @@ export default function SearchHistory() {
     setHistoryEntries(newEntries);
   };
 
+  const handleLoginClick = () => setIsLoginModalOpen(true);
+  const handleCloseLoginModal = () => setIsLoginModalOpen(false);
+  const handleCloseRegisterModal = () => setIsRegisterModalOpen(false);
+
   return (
     <div className="min-h-screen bg-white">
       {/* Header */}
       <div className="border-b border-brand-border-light bg-white">
-        <div className="flex items-center justify-center py-3 border-b border-brand-border-light">
-          <div className="flex items-center gap-2">
-            <span className="text-2xl font-alkalami">
-              Have library access?{" "}
-              <button className="font-abhaya underline ml-3 hover:text-brand-orange transition-colors">
-                Log in
-              </button>
-            </span>
+        {!user && !loading && (
+          <div className="flex items-center justify-center py-3 border-b border-brand-border-light">
+            <div className="flex items-center gap-2">
+              <span className="text-2xl font-alkalami">
+                Have library access?{" "}
+                <button 
+                  onClick={handleLoginClick}
+                  className="font-abhaya underline ml-3 hover:text-brand-orange transition-colors"
+                >
+                  Log in
+                </button>
+              </span>
+            </div>
+            <HelpCircle size={24} className="absolute right-12 top-3" />
           </div>
-          <HelpCircle size={24} className="absolute right-12 top-3" />
-        </div>
+        )}
 
         <div className="flex items-center justify-between px-6 py-4">
           <Link to="/" className="flex items-center">
@@ -238,6 +253,16 @@ export default function SearchHistory() {
           ))}
         </div>
       </div>
+
+      {/* Modals */}
+      <LoginModal
+        isOpen={isLoginModalOpen}
+        onClose={handleCloseLoginModal}
+      />
+      <RegisterModal
+        isOpen={isRegisterModalOpen}
+        onClose={handleCloseRegisterModal}
+      />
     </div>
   );
 }

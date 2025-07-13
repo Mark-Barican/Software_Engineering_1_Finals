@@ -67,7 +67,7 @@ export default function RegisterModal({ isOpen, onClose, onRegistrationSuccess }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black bg-opacity-50 pt-16 overflow-y-auto">
       <div className="bg-white rounded-lg w-full max-w-md mx-4 relative">
         {/* Close button */}
         <button
@@ -179,10 +179,17 @@ export default function RegisterModal({ isOpen, onClose, onRegistrationSuccess }
           {/* Create Account Button */}
           <button
             onClick={handleCreateAccount}
-            className="w-full py-4 bg-brand-orange-light text-white font-bold text-lg rounded-full hover:bg-brand-orange transition-colors disabled:opacity-60"
+            className="w-full py-4 bg-brand-orange-light text-white font-bold text-lg rounded-full hover:bg-brand-orange transition-all duration-200 disabled:opacity-60 hover:scale-105 disabled:hover:scale-100"
             disabled={loading}
           >
-            {loading ? "Creating..." : "Create account"}
+            {loading ? (
+              <div className="flex items-center justify-center gap-2">
+                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                <span>Creating...</span>
+              </div>
+            ) : (
+              "Create account"
+            )}
           </button>
         </div>
       </div>

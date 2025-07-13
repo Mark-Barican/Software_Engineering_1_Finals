@@ -243,7 +243,7 @@ export default function PasswordChangeForm({ onSuccess, onCancel }: PasswordChan
             <Button
               type="submit"
               disabled={loading}
-              className="flex-1 py-3 bg-brand-orange-light text-white font-bold text-lg rounded-full hover:bg-brand-orange transition-colors disabled:opacity-60"
+              className="flex-1 py-3 bg-brand-orange-light text-white font-bold text-lg rounded-full hover:bg-brand-orange transition-all duration-200 disabled:opacity-60 hover:scale-105 disabled:hover:scale-100"
             >
               {loading ? (
                 <>
@@ -264,7 +264,7 @@ export default function PasswordChangeForm({ onSuccess, onCancel }: PasswordChan
                 variant="outline"
                 onClick={onCancel}
                 disabled={loading}
-                className="flex-1 py-3 border-gray-400 text-black font-bold text-lg rounded-full hover:bg-gray-50 transition-colors"
+                className="flex-1 py-3 border-gray-400 text-black font-bold text-lg rounded-full hover:bg-gray-50 transition-all duration-200 hover:scale-105 disabled:hover:scale-100"
               >
                 Cancel
               </Button>
