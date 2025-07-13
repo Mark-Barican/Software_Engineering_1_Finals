@@ -6,6 +6,7 @@ import { createServer } from "./server";
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
   server: {
+    port: 5173,
   },
   build: {
     outDir: "dist/spa",
@@ -25,6 +26,9 @@ function expressPlugin(): Plugin {
     apply: "serve", // Only apply during development (serve mode)
     configureServer(server) {
       const app = createServer();
+      
+              console.log("Express server integrated with Vite");
+              console.log("API endpoints available at /api/*");
 
       // Add Express app as middleware to Vite dev server
       server.middlewares.use(app);

@@ -4,6 +4,11 @@ interface User {
   id: string;
   name: string;
   email: string;
+  preferences?: {
+    notifications: boolean;
+    defaultSearch: string;
+    displayMode: string;
+  };
 }
 
 interface AuthContextType {

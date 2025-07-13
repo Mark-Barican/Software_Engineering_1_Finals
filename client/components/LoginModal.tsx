@@ -1,20 +1,25 @@
 import { useState } from "react";
 import { X } from "lucide-react";
 import { useAuth } from "../hooks/use-auth";
+import { useNavigate } from "react-router-dom";
+import ForgotPasswordModal from "./ForgotPasswordModal";
 
 interface LoginModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onLoginSuccess?: () => void;
 }
 
-export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
+export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginModalProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
   const { fetchUser } = useAuth();
+  const navigate = useNavigate();
 
   if (!isOpen) return null;
 
@@ -48,6 +53,14 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
         setTimeout(() => {
           setSuccess("");
           onClose();
+          
+          // Handle post-login navigation
+          if (onLoginSuccess) {
+            onLoginSuccess();
+          } else {
+            // Default navigation - redirect to My Account page
+            navigate("/my-account");
+          }
         }, 1200);
       }
     } catch (err) {
@@ -173,8 +186,25 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
           >
             {loading ? "Logging in..." : "Log in"}
           </button>
+
+          {/* Forgot Password Link */}
+          <div className="text-center mt-4">
+            <button
+              onClick={() => setShowForgotPassword(true)}
+              className="text-brand-orange hover:text-brand-orange-light font-medium underline"
+            >
+              Forgot your password?
+            </button>
+          </div>
         </div>
       </div>
+
+      {/* Forgot Password Modal */}
+      <ForgotPasswordModal
+        isOpen={showForgotPassword}
+        onClose={() => setShowForgotPassword(false)}
+        onBackToLogin={() => setShowForgotPassword(false)}
+      />
     </div>
   );
 }

@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { ChevronDown, User, HelpCircle } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import LoginModal from "../components/LoginModal";
 import RegisterModal from "../components/RegisterModal";
 
 export default function AdvancedSearch() {
+  const navigate = useNavigate();
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
   const [formData, setFormData] = useState({
@@ -47,6 +48,17 @@ export default function AdvancedSearch() {
   const handleRegisterClick = () => setIsRegisterModalOpen(true);
   const handleCloseLoginModal = () => setIsLoginModalOpen(false);
   const handleCloseRegisterModal = () => setIsRegisterModalOpen(false);
+
+  const handleLoginSuccess = () => {
+    // After successful login, redirect to My Account page
+    navigate("/my-account");
+  };
+
+  const handleRegistrationSuccess = () => {
+    // After successful registration, show login modal
+    setIsRegisterModalOpen(false);
+    setIsLoginModalOpen(true);
+  };
 
   const handleInputChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -344,12 +356,17 @@ export default function AdvancedSearch() {
       </div>
 
       {/* Login Modal */}
-      <LoginModal isOpen={isLoginModalOpen} onClose={handleCloseLoginModal} />
+      <LoginModal 
+        isOpen={isLoginModalOpen} 
+        onClose={handleCloseLoginModal}
+        onLoginSuccess={handleLoginSuccess}
+      />
 
       {/* Register Modal */}
       <RegisterModal
         isOpen={isRegisterModalOpen}
         onClose={handleCloseRegisterModal}
+        onRegistrationSuccess={handleRegistrationSuccess}
       />
     </div>
   );

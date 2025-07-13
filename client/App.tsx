@@ -15,6 +15,7 @@ import NotFound from "./pages/NotFound";
 import Settings from "./pages/Settings";
 import { AuthProvider, useAuth } from "./hooks/use-auth";
 import MyAccount from "./pages/MyAccount";
+import ResetPassword from "./pages/ResetPassword";
 
 const queryClient = new QueryClient();
 
@@ -39,6 +40,7 @@ const App = () => (
             <Route path="/book/the-great-gatsby" element={<BookPreview />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/my-account" element={<PrivateRoute><MyAccount /></PrivateRoute>} />
+            <Route path="/reset-password" element={<ResetPassword />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
