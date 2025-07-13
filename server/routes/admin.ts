@@ -81,21 +81,61 @@ export async function getUsers(req: Request, res: Response) {
 
     const total = await User.countDocuments();
 
-    const usersWithStatus = users.map(user => ({
-      id: user._id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      createdAt: user.createdAt,
-      lastLogin: user.lastLogin,
-      status: user.lastLogin && 
-        new Date(user.lastLogin).getTime() > Date.now() - 30 * 24 * 60 * 60 * 1000 
-        ? 'active' 
-        : 'inactive'
-    }));
+    // Import Loan and Fine models to get student statistics
+    const { Loan, Fine, Reservation } = require('./librarian');
+
+    const usersWithDetails = await Promise.all(
+      users.map(async (user) => {
+        let additionalInfo = {};
+        
+        // For students (users), get borrowing statistics
+        if (user.role === 'user') {
+          const currentLoans = await Loan.countDocuments({ 
+            userId: user._id, 
+            status: 'active' 
+          });
+          
+          const totalBorrowed = await Loan.countDocuments({ 
+            userId: user._id 
+          });
+          
+          const outstandingFines = await Fine.aggregate([
+            { $match: { userId: user._id, status: 'pending' } },
+            { $group: { _id: null, total: { $sum: '$amount' } } }
+          ]);
+          
+          const reservations = await Reservation.countDocuments({
+            userId: user._id,
+            status: { $in: ['pending', 'ready'] }
+          });
+          
+          additionalInfo = {
+            currentBorrowedBooks: currentLoans,
+            totalBooksBorrowed: totalBorrowed,
+            outstandingFines: outstandingFines[0]?.total || 0,
+            numberOfReservations: reservations
+          };
+        }
+        
+        return {
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          userId: user.userId || `${user.role.toUpperCase()}-${user._id.toString().slice(-6)}`,
+          contactNumber: user.contactNumber || '+1-555-0123',
+          department: user.department || (user.role === 'user' ? 'Computer Science - Year 3' : 
+                      user.role === 'librarian' ? 'Reference Section' : 'Administration'),
+          createdAt: user.createdAt,
+          lastLogin: user.lastLogin,
+          accountStatus: user.accountStatus || 'active',
+          ...additionalInfo
+        };
+      })
+    );
 
     res.json({
-      users: usersWithStatus,
+      users: usersWithDetails,
       pagination: {
         page,
         limit,

@@ -74,7 +74,7 @@ export default function Index() {
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
   const [currentSlide, setCurrentSlide] = useState(0);
   const navigate = useNavigate();
-  const { user, logout, loading, isAdmin } = useAuth();
+  const { user, logout, loading, isAdmin, isLibrarian } = useAuth();
 
   const handleLoginClick = () => {
     setIsLoginModalOpen(true);
@@ -176,6 +176,14 @@ export default function Index() {
                     className="px-4 py-2 border border-brand-border-light rounded-full font-abhaya text-base bg-purple-500 text-white hover:bg-purple-600 transition-colors"
                   >
                     Admin
+                  </button>
+                )}
+                {isLibrarian && !isAdmin && (
+                  <button
+                    onClick={() => navigate("/librarian")}
+                    className="px-4 py-2 border border-brand-border-light rounded-full font-abhaya text-base bg-blue-500 text-white hover:bg-blue-600 transition-colors"
+                  >
+                    Librarian
                   </button>
                 )}
                 <button

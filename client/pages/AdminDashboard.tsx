@@ -43,9 +43,17 @@ interface User {
   name: string;
   email: string;
   role: 'admin' | 'librarian' | 'user';
+  userId: string;
+  contactNumber: string;
+  department: string;
   createdAt: string;
   lastLogin: string;
-  status: 'active' | 'inactive' | 'suspended';
+  accountStatus: 'active' | 'inactive' | 'suspended';
+  // For students only
+  currentBorrowedBooks?: number;
+  totalBooksBorrowed?: number;
+  outstandingFines?: number;
+  numberOfReservations?: number;
 }
 
 interface Book {
@@ -468,7 +476,7 @@ export default function AdminDashboard() {
                 <div className="flex justify-between items-center">
                   <CardTitle className="flex items-center gap-2">
                     <Users className="w-5 h-5" />
-                    User Management
+                    User Management ({users.length} total)
                   </CardTitle>
                   <Button className="flex items-center gap-2">
                     <Plus className="w-4 h-4" />
@@ -477,49 +485,166 @@ export default function AdminDashboard() {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
+                <div className="space-y-6">
                   {users.map((user) => (
-                    <div key={user.id} className="flex items-center justify-between p-4 border rounded-lg">
-                      <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center">
-                          <Users className="w-5 h-5 text-gray-600" />
+                    <Card key={user.id} className="p-6">
+                      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        {/* Basic Information */}
+                        <div className="space-y-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center">
+                              <Users className="w-6 h-6 text-gray-600" />
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <h3 className="font-semibold text-lg">{user.name}</h3>
+                                <Badge className={getRoleColor(user.role)}>
+                                  {user.role}
+                                </Badge>
+                                <Badge className={getStatusColor(user.accountStatus)}>
+                                  {user.accountStatus}
+                                </Badge>
+                              </div>
+                              <p className="text-sm text-gray-600">{user.email}</p>
+                            </div>
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <div className="flex justify-between">
+                              <span className="text-sm text-gray-600">User ID:</span>
+                              <span className="text-sm font-medium">{user.userId}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-sm text-gray-600">Contact:</span>
+                              <span className="text-sm font-medium">{user.contactNumber}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-sm text-gray-600">
+                                {user.role === 'user' ? 'Course/Year:' : 'Department:'}
+                              </span>
+                              <span className="text-sm font-medium">{user.department}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-sm text-gray-600">Date Joined:</span>
+                              <span className="text-sm font-medium">
+                                {new Date(user.createdAt).toLocaleDateString()}
+                              </span>
+                            </div>
+                            {user.lastLogin && (
+                              <div className="flex justify-between">
+                                <span className="text-sm text-gray-600">Last Login:</span>
+                                <span className="text-sm font-medium">
+                                  {new Date(user.lastLogin).toLocaleDateString()}
+                                </span>
+                              </div>
+                            )}
+                          </div>
                         </div>
-                        <div>
-                          <p className="font-medium">{user.name}</p>
-                          <p className="text-sm text-gray-600">{user.email}</p>
+
+                        {/* Student Additional Information */}
+                        {user.role === 'user' && (
+                          <div className="space-y-4">
+                            <h4 className="font-medium text-gray-900">Student Information</h4>
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="bg-blue-50 p-3 rounded-lg">
+                                <div className="text-center">
+                                  <div className="text-2xl font-bold text-blue-600">
+                                    {user.currentBorrowedBooks || 0}
+                                  </div>
+                                  <div className="text-xs text-gray-600">Current Loans</div>
+                                </div>
+                              </div>
+                              <div className="bg-green-50 p-3 rounded-lg">
+                                <div className="text-center">
+                                  <div className="text-2xl font-bold text-green-600">
+                                    {user.totalBooksBorrowed || 0}
+                                  </div>
+                                  <div className="text-xs text-gray-600">Total Borrowed</div>
+                                </div>
+                              </div>
+                              <div className="bg-red-50 p-3 rounded-lg">
+                                <div className="text-center">
+                                  <div className="text-2xl font-bold text-red-600">
+                                    ${(user.outstandingFines || 0).toFixed(2)}
+                                  </div>
+                                  <div className="text-xs text-gray-600">Outstanding Fines</div>
+                                </div>
+                              </div>
+                              <div className="bg-purple-50 p-3 rounded-lg">
+                                <div className="text-center">
+                                  <div className="text-2xl font-bold text-purple-600">
+                                    {user.numberOfReservations || 0}
+                                  </div>
+                                  <div className="text-xs text-gray-600">Reservations</div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Staff Information */}
+                        {(user.role === 'librarian' || user.role === 'admin') && (
+                          <div className="space-y-4">
+                            <h4 className="font-medium text-gray-900">
+                              {user.role === 'admin' ? 'Administrator' : 'Librarian'} Information
+                            </h4>
+                            <div className="bg-gray-50 p-4 rounded-lg">
+                              <div className="space-y-2">
+                                <div className="flex justify-between">
+                                  <span className="text-sm text-gray-600">Position:</span>
+                                  <span className="text-sm font-medium capitalize">{user.role}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-sm text-gray-600">
+                                    {user.role === 'admin' ? 'Division:' : 'Assigned Section:'}
+                                  </span>
+                                  <span className="text-sm font-medium">{user.department}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-sm text-gray-600">Access Level:</span>
+                                  <span className="text-sm font-medium">
+                                    {user.role === 'admin' ? 'Full System Access' : 'Library Operations'}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Actions */}
+                        <div className="flex flex-col gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleUserAction('view', user.id)}
+                            className="w-full"
+                          >
+                            <Eye className="w-4 h-4 mr-2" />
+                            View Details
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleUserAction('edit', user.id)}
+                            className="w-full"
+                          >
+                            <Edit className="w-4 h-4 mr-2" />
+                            Edit User
+                          </Button>
+                          {user.role !== 'admin' && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleUserAction('delete', user.id)}
+                              className="w-full text-red-600 hover:text-red-700"
+                            >
+                              <Trash2 className="w-4 h-4 mr-2" />
+                              Delete User
+                            </Button>
+                          )}
                         </div>
-                        <Badge className={getRoleColor(user.role)}>
-                          {user.role}
-                        </Badge>
-                        <Badge className={getStatusColor(user.status)}>
-                          {user.status}
-                        </Badge>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleUserAction('view', user.id)}
-                        >
-                          <Eye className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleUserAction('edit', user.id)}
-                        >
-                          <Edit className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleUserAction('delete', user.id)}
-                          className="text-red-600 hover:text-red-700"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </div>
+                    </Card>
                   ))}
                 </div>
               </CardContent>
