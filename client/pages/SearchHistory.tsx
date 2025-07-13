@@ -141,8 +141,14 @@ export default function SearchHistory() {
   };
 
   const handleLoginClick = () => setIsLoginModalOpen(true);
+  const handleRegisterClick = () => setIsRegisterModalOpen(true);
   const handleCloseLoginModal = () => setIsLoginModalOpen(false);
   const handleCloseRegisterModal = () => setIsRegisterModalOpen(false);
+
+  const handleDeleteBrowsingData = () => {
+    // This would typically show a confirmation dialog and then clear the data
+    alert("Delete browsing data functionality would be implemented here");
+  };
 
   return (
     <div className="min-h-screen bg-white">
@@ -176,10 +182,16 @@ export default function SearchHistory() {
           </Link>
 
           <div className="flex items-center gap-3">
-            <button className="px-4 py-2 border border-brand-border-light rounded-full font-abhaya text-base hover:bg-gray-50 transition-colors">
+            <button 
+              onClick={handleRegisterClick}
+              className="px-4 py-2 border border-brand-border-light rounded-full font-abhaya text-base hover:bg-gray-50 transition-colors"
+            >
               Register
             </button>
-            <button className="flex items-center gap-2 px-4 py-2 bg-brand-orange text-white rounded-full font-abhaya text-base hover:bg-brand-orange-light transition-colors">
+            <button 
+              onClick={handleLoginClick}
+              className="flex items-center gap-2 px-4 py-2 bg-brand-orange text-white rounded-full font-abhaya text-base hover:bg-brand-orange-light transition-colors"
+            >
               <User size={24} />
               Log in
             </button>
@@ -192,7 +204,10 @@ export default function SearchHistory() {
         {/* Delete Browsing Data */}
         <div className="flex items-center gap-2 mb-8">
           <Trash2 size={24} className="text-brand-orange" />
-          <button className="text-brand-orange font-afacad text-2xl hover:underline">
+          <button 
+            onClick={handleDeleteBrowsingData}
+            className="text-brand-orange font-afacad text-2xl hover:underline"
+          >
             Delete Browsing Data
           </button>
         </div>

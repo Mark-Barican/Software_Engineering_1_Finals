@@ -72,6 +72,7 @@ export default function Index() {
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
+  const [currentSlide, setCurrentSlide] = useState(0);
   const navigate = useNavigate();
   const { user, logout, loading } = useAuth();
 
@@ -112,6 +113,14 @@ export default function Index() {
     if (e.key === "Enter") {
       handleSearch();
     }
+  };
+
+  const handlePrevSlide = () => {
+    setCurrentSlide((prev) => (prev === 0 ? 2 : prev - 1));
+  };
+
+  const handleNextSlide = () => {
+    setCurrentSlide((prev) => (prev === 2 ? 0 : prev + 1));
   };
 
   return (
@@ -260,7 +269,10 @@ export default function Index() {
                 All books are rich in story and knowledge and here, you are yet
                 to discover thousands of these stories.
               </p>
-              <button className="bg-brand-orange text-white px-10 py-5 rounded-full text-2xl font-afacad font-bold tracking-tight">
+              <button 
+                onClick={() => navigate("/search")}
+                className="bg-brand-orange text-white px-10 py-5 rounded-full text-2xl font-afacad font-bold tracking-tight hover:bg-brand-orange-light transition-colors"
+              >
                 BROWSE CATALOG
               </button>
             </div>
@@ -288,10 +300,16 @@ export default function Index() {
           </h2>
 
           <div className="relative">
-            <button className="absolute left-0 top-1/2 transform -translate-y-1/2 z-10 p-2">
+            <button 
+              onClick={handlePrevSlide}
+              className="absolute left-0 top-1/2 transform -translate-y-1/2 z-10 p-2 hover:bg-gray-100 rounded-full transition-colors"
+            >
               <ChevronLeft size={28} />
             </button>
-            <button className="absolute right-0 top-1/2 transform -translate-y-1/2 z-10 p-2">
+            <button 
+              onClick={handleNextSlide}
+              className="absolute right-0 top-1/2 transform -translate-y-1/2 z-10 p-2 hover:bg-gray-100 rounded-full transition-colors"
+            >
               <ChevronRight size={28} />
             </button>
 

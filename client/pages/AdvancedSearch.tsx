@@ -75,11 +75,33 @@ export default function AdvancedSearch() {
   };
 
   const handleSubmit = () => {
-    console.log("Advanced search submitted:", {
-      formData,
-      selectedFilters,
-      selectedGenres,
+    // Build search query from form data
+    const searchParams = new URLSearchParams();
+    
+    // Add form fields to search
+    Object.entries(formData).forEach(([key, value]) => {
+      if (value && value !== "All fields" && value !== "All Languages") {
+        searchParams.append(key, value);
+      }
     });
+    
+    // Add selected filters
+    Object.entries(selectedFilters).forEach(([key, value]) => {
+      if (value) {
+        searchParams.append("filter", key);
+      }
+    });
+    
+    // Add selected genres
+    Object.entries(selectedGenres).forEach(([key, value]) => {
+      if (value) {
+        searchParams.append("genre", key);
+      }
+    });
+    
+    // Navigate to search results with parameters
+    const queryString = searchParams.toString();
+    navigate(`/search${queryString ? `?${queryString}` : ""}`);
   };
 
   return (
