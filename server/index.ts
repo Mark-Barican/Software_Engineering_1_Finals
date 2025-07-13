@@ -3,8 +3,9 @@ import cors from "cors";
 import { handleDemo } from "./routes/demo";
 import { getProfile, updateProfile, changePassword, deleteProfile } from "./routes/profile";
 import mongoose from "mongoose";
-import { register, login, forgotPassword, resetPassword, getUserSessions, revokeSession, revokeAllSessions, refreshSession, verifyTokenWithSession, requireAdmin } from "./routes/auth";
+import { register, login, forgotPassword, resetPassword, getUserSessions, revokeSession, revokeAllSessions, refreshSession, verifyTokenWithSession, requireAdmin, requireLibrarian } from "./routes/auth";
 import { getAdminStats, getUsers, createUser, updateUser, deleteUser, getBooks, createBook, updateBook, deleteBook } from "./routes/admin";
+import { getLibrarianDashboard, getLibrarianBooks, issueBook, returnBook, getLoans, getOverdueBooks, getReservations, searchUsers, getUserLoans } from "./routes/librarian";
 
 export function createServer() {
   const app = express();
@@ -65,6 +66,17 @@ export function createServer() {
   app.post("/api/admin/books", verifyTokenWithSession, requireAdmin, createBook);
   app.put("/api/admin/books/:id", verifyTokenWithSession, requireAdmin, updateBook);
   app.delete("/api/admin/books/:id", verifyTokenWithSession, requireAdmin, deleteBook);
+
+  // Librarian routes
+  app.get("/api/librarian/dashboard", verifyTokenWithSession, requireLibrarian, getLibrarianDashboard);
+  app.get("/api/librarian/books", verifyTokenWithSession, requireLibrarian, getLibrarianBooks);
+  app.post("/api/librarian/loans/issue", verifyTokenWithSession, requireLibrarian, issueBook);
+  app.post("/api/librarian/loans/return", verifyTokenWithSession, requireLibrarian, returnBook);
+  app.get("/api/librarian/loans", verifyTokenWithSession, requireLibrarian, getLoans);
+  app.get("/api/librarian/overdue", verifyTokenWithSession, requireLibrarian, getOverdueBooks);
+  app.get("/api/librarian/reservations", verifyTokenWithSession, requireLibrarian, getReservations);
+  app.get("/api/librarian/users/search", verifyTokenWithSession, requireLibrarian, searchUsers);
+  app.get("/api/librarian/users/:id/loans", verifyTokenWithSession, requireLibrarian, getUserLoans);
 
   return app;
 }

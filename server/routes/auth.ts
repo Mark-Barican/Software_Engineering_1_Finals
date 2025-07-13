@@ -63,6 +63,15 @@ const userSchema = new mongoose.Schema({
     enum: ['admin', 'librarian', 'user'], 
     default: 'user' 
   },
+  // Additional user details
+  userId: { type: String, unique: true }, // Student Number or Employee ID
+  contactNumber: { type: String, default: '' },
+  department: { type: String, default: '' }, // Department/Course/Year for students or Assigned Section for librarians
+  accountStatus: { 
+    type: String, 
+    enum: ['active', 'inactive', 'suspended'], 
+    default: 'active' 
+  },
   preferences: {
     notifications: { type: Boolean, default: true },
     defaultSearch: { type: String, default: "title" },

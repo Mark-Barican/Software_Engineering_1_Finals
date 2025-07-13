@@ -17,6 +17,7 @@ import { AuthProvider, useAuth } from "./hooks/use-auth";
 import MyAccount from "./pages/MyAccount";
 import ResetPassword from "./pages/ResetPassword";
 import AdminDashboard from "./pages/AdminDashboard";
+import LibrarianDashboard from "./pages/LibrarianDashboard";
 import { PageLoader } from "./components/LoadingOverlay";
 import PageTransition from "./components/PageTransition";
 import { ErrorBoundary, NetworkStatusIndicator } from "./components/ErrorHandler";
@@ -34,6 +35,14 @@ function AdminRoute({ children }: { children: JSX.Element }) {
   if (initialLoading) return <PageLoader message="Loading your account..." />;
   if (!user) return <Navigate to="/" replace />;
   if (!isAdmin) return <Navigate to="/my-account" replace />;
+  return children;
+}
+
+function LibrarianRoute({ children }: { children: JSX.Element }) {
+  const { user, initialLoading, isLibrarian } = useAuth();
+  if (initialLoading) return <PageLoader message="Loading your account..." />;
+  if (!user) return <Navigate to="/" replace />;
+  if (!isLibrarian) return <Navigate to="/my-account" replace />;
   return children;
 }
 
@@ -56,6 +65,7 @@ const App = () => (
                 <Route path="/settings" element={<Settings />} />
                 <Route path="/my-account" element={<PrivateRoute><MyAccount /></PrivateRoute>} />
                 <Route path="/admin" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
+                <Route path="/librarian" element={<LibrarianRoute><LibrarianDashboard /></LibrarianRoute>} />
                 <Route path="/reset-password" element={<ResetPassword />} />
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                 <Route path="*" element={<NotFound />} />
