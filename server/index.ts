@@ -3,7 +3,8 @@ import cors from "cors";
 import { handleDemo } from "./routes/demo";
 import { getProfile, updateProfile, changePassword, deleteProfile } from "./routes/profile";
 import mongoose from "mongoose";
-import { register, login, forgotPassword, resetPassword, getUserSessions, revokeSession, revokeAllSessions, refreshSession, verifyTokenWithSession } from "./routes/auth";
+import { register, login, forgotPassword, resetPassword, getUserSessions, revokeSession, revokeAllSessions, refreshSession, verifyTokenWithSession, requireAdmin } from "./routes/auth";
+import { getAdminStats, getUsers, createUser, updateUser, deleteUser, getBooks, createBook, updateBook, deleteBook } from "./routes/admin";
 
 export function createServer() {
   const app = express();
@@ -53,6 +54,17 @@ export function createServer() {
   app.delete("/api/sessions/:sessionId", verifyTokenWithSession, revokeSession);
   app.delete("/api/sessions", verifyTokenWithSession, revokeAllSessions);
   app.post("/api/sessions/refresh", verifyTokenWithSession, refreshSession);
+
+  // Admin routes
+  app.get("/api/admin/stats", verifyTokenWithSession, requireAdmin, getAdminStats);
+  app.get("/api/admin/users", verifyTokenWithSession, requireAdmin, getUsers);
+  app.post("/api/admin/users", verifyTokenWithSession, requireAdmin, createUser);
+  app.put("/api/admin/users/:id", verifyTokenWithSession, requireAdmin, updateUser);
+  app.delete("/api/admin/users/:id", verifyTokenWithSession, requireAdmin, deleteUser);
+  app.get("/api/admin/books", verifyTokenWithSession, requireAdmin, getBooks);
+  app.post("/api/admin/books", verifyTokenWithSession, requireAdmin, createBook);
+  app.put("/api/admin/books/:id", verifyTokenWithSession, requireAdmin, updateBook);
+  app.delete("/api/admin/books/:id", verifyTokenWithSession, requireAdmin, deleteBook);
 
   return app;
 }

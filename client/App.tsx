@@ -16,6 +16,7 @@ import Settings from "./pages/Settings";
 import { AuthProvider, useAuth } from "./hooks/use-auth";
 import MyAccount from "./pages/MyAccount";
 import ResetPassword from "./pages/ResetPassword";
+import AdminDashboard from "./pages/AdminDashboard";
 import { PageLoader } from "./components/LoadingOverlay";
 import PageTransition from "./components/PageTransition";
 import { ErrorBoundary, NetworkStatusIndicator } from "./components/ErrorHandler";
@@ -26,6 +27,14 @@ function PrivateRoute({ children }: { children: JSX.Element }) {
   const { user, initialLoading } = useAuth();
   if (initialLoading) return <PageLoader message="Loading your account..." />;
   return user ? children : <Navigate to="/" replace />;
+}
+
+function AdminRoute({ children }: { children: JSX.Element }) {
+  const { user, initialLoading, isAdmin } = useAuth();
+  if (initialLoading) return <PageLoader message="Loading your account..." />;
+  if (!user) return <Navigate to="/" replace />;
+  if (!isAdmin) return <Navigate to="/my-account" replace />;
+  return children;
 }
 
 const App = () => (
@@ -46,6 +55,7 @@ const App = () => (
                 <Route path="/book/the-great-gatsby" element={<BookPreview />} />
                 <Route path="/settings" element={<Settings />} />
                 <Route path="/my-account" element={<PrivateRoute><MyAccount /></PrivateRoute>} />
+                <Route path="/admin" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
                 <Route path="/reset-password" element={<ResetPassword />} />
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                 <Route path="*" element={<NotFound />} />
