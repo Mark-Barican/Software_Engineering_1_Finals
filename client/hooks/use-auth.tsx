@@ -4,6 +4,7 @@ interface User {
   id: string;
   name: string;
   email: string;
+  role: 'admin' | 'librarian' | 'user';
   preferences?: {
     notifications: boolean;
     defaultSearch: string;
@@ -21,6 +22,11 @@ interface AuthContextType {
   fetchUser: () => Promise<void>;
   refreshSession: () => Promise<void>;
   isAuthenticated: boolean;
+  isAdmin: boolean;
+  isLibrarian: boolean;
+  isUser: boolean;
+  hasRole: (role: string) => boolean;
+  hasAnyRole: (roles: string[]) => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -63,6 +69,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           id: data.id || data._id, 
           name: data.name, 
           email: data.email, 
+          role: data.role || 'user',
           preferences: data.preferences 
         });
       } else {
@@ -107,6 +114,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const isAuthenticated = !!user && !!token;
 
+  // Role-based helper functions
+  const isAdmin = user?.role === 'admin';
+  const isLibrarian = user?.role === 'librarian' || user?.role === 'admin';
+  const isUser = !!user;
+  
+  const hasRole = (role: string) => {
+    return user?.role === role;
+  };
+  
+  const hasAnyRole = (roles: string[]) => {
+    return !!user && roles.includes(user.role);
+  };
+
   // Auto-refresh session every 5 minutes
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -128,7 +148,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       logout, 
       fetchUser, 
       refreshSession, 
-      isAuthenticated 
+      isAuthenticated,
+      isAdmin,
+      isLibrarian,
+      isUser,
+      hasRole,
+      hasAnyRole
     }}>
       {children}
     </AuthContext.Provider>

@@ -58,6 +58,11 @@ const userSchema = new mongoose.Schema({
   name: String,
   email: { type: String, unique: true },
   passwordHash: String,
+  role: { 
+    type: String, 
+    enum: ['admin', 'librarian', 'user'], 
+    default: 'user' 
+  },
   preferences: {
     notifications: { type: Boolean, default: true },
     defaultSearch: { type: String, default: "title" },
@@ -102,7 +107,7 @@ export async function register(req: Request, res: Response) {
     console.log("Creating new user...");
     const user = await User.create({ name, email, passwordHash });
     console.log("User created successfully:", user._id);
-    res.json({ success: true, user: { id: user._id, name: user.name, email: user.email } });
+    res.json({ success: true, user: { id: user._id, name: user.name, email: user.email, role: user.role } });
   } catch (err) {
     console.error("Registration error:", err);
     res.status(500).json({ success: false, message: "Registration failed", error: err });
@@ -163,6 +168,7 @@ export async function login(req: Request, res: Response) {
         id: user._id, 
         name: user.name, 
         email: user.email,
+        role: user.role,
         preferences: user.preferences 
       } 
     });
@@ -358,6 +364,44 @@ export async function refreshSession(req: Request, res: Response) {
     res.status(500).json({ message: "Internal server error" });
   }
 }
+
+// Role-based middleware
+export function requireRole(roles: string[]) {
+  return async (req: Request, res: Response, next: Function) => {
+    try {
+      const userId = (req as any).userId;
+      
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      
+      const user = await User.findById(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      if (!roles.includes(user.role)) {
+        return res.status(403).json({ 
+          message: "Access denied. Insufficient permissions.",
+          requiredRole: roles,
+          userRole: user.role 
+        });
+      }
+      
+      // Add user info to request for use in route handlers
+      (req as any).user = user;
+      next();
+    } catch (err) {
+      console.error("Role check error:", err);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  };
+}
+
+// Convenience middleware functions
+export const requireAdmin = requireRole(['admin']);
+export const requireLibrarian = requireRole(['admin', 'librarian']);
+export const requireUser = requireRole(['admin', 'librarian', 'user']);
 
 // Export User model for use in profile endpoints
 export { User, verifyTokenWithSession }; 

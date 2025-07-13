@@ -74,7 +74,7 @@ export default function Index() {
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
   const [currentSlide, setCurrentSlide] = useState(0);
   const navigate = useNavigate();
-  const { user, logout, loading } = useAuth();
+  const { user, logout, loading, isAdmin } = useAuth();
 
   const handleLoginClick = () => {
     setIsLoginModalOpen(true);
@@ -170,6 +170,14 @@ export default function Index() {
                   <User size={20} className="mr-2" />
                   <span>{user.name}</span>
                 </button>
+                {isAdmin && (
+                  <button
+                    onClick={() => navigate("/admin")}
+                    className="px-4 py-2 border border-brand-border-light rounded-full font-abhaya text-base bg-purple-500 text-white hover:bg-purple-600 transition-colors"
+                  >
+                    Admin
+                  </button>
+                )}
                 <button
                   onClick={logout}
                   className="px-4 py-2 border border-brand-border-light rounded-full font-abhaya text-base bg-red-500 text-white hover:bg-red-600 transition-colors"
