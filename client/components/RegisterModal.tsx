@@ -1,17 +1,22 @@
 import { useState } from "react";
 import { X } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 
 interface RegisterModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onRegistrationSuccess?: () => void;
 }
 
-export default function RegisterModal({ isOpen, onClose }: RegisterModalProps) {
+export default function RegisterModal({ isOpen, onClose, onRegistrationSuccess }: RegisterModalProps) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const navigate = useNavigate();
 
   if (!isOpen) return null;
 
@@ -33,7 +38,26 @@ export default function RegisterModal({ isOpen, onClose }: RegisterModalProps) {
       if (!res.ok || !data.success) {
         setError(data.message || "Registration failed");
       } else {
-        onClose();
+        setSuccess("Account created successfully! Please log in.");
+        toast.success("Registration successful! Please log in with your new account.");
+        
+        // Clear form
+        setName("");
+        setEmail("");
+        setPassword("");
+        
+        setTimeout(() => {
+          setSuccess("");
+          onClose();
+          
+          // Handle post-registration navigation
+          if (onRegistrationSuccess) {
+            onRegistrationSuccess();
+          } else {
+            // Default behavior - user can now login
+            // The parent component should show login modal
+          }
+        }, 2000);
       }
     } catch (err) {
       setError("Network error. Please try again.");
@@ -145,6 +169,11 @@ export default function RegisterModal({ isOpen, onClose }: RegisterModalProps) {
           {/* Error Message */}
           {error && (
             <div className="mb-4 text-red-600 text-center font-bold">{error}</div>
+          )}
+          
+          {/* Success Message */}
+          {success && (
+            <div className="mb-4 text-green-600 text-center font-bold">{success}</div>
           )}
 
           {/* Create Account Button */}

@@ -1,0 +1,348 @@
+{
+  "database": "library",
+  "collections": [
+    {
+      "name": "users",
+      "documents": [
+        {
+          "_id": {"$oid": "6507f1f0abcd1234567890a1"},
+          "name": "John Doe",
+          "email": "john.doe@example.com",
+          "passwordHash": "$2a$10$N9qo8uLOickgx2ZMRZoMye.M7eFWBmefyR2RjcPp/7dXyokbeTpx6",
+          "preferences": {
+            "notifications": true,
+            "defaultSearch": "title",
+            "displayMode": "grid"
+          },
+          "createdAt": {"$date": "2024-01-15T08:30:00.000Z"},
+          "lastLogin": {"$date": "2024-01-20T14:22:00.000Z"}
+        },
+        {
+          "_id": {"$oid": "6507f1f0abcd1234567890a2"},
+          "name": "Jane Smith",
+          "email": "jane.smith@university.edu",
+          "passwordHash": "$2a$10$N9qo8uLOickgx2ZMRZoMye.M7eFWBmefyR2RjcPp/7dXyokbeTpx6",
+          "preferences": {
+            "notifications": false,
+            "defaultSearch": "author",
+            "displayMode": "list"
+          },
+          "createdAt": {"$date": "2024-01-10T10:15:00.000Z"},
+          "lastLogin": {"$date": "2024-01-19T16:45:00.000Z"}
+        },
+        {
+          "_id": {"$oid": "6507f1f0abcd1234567890a3"},
+          "name": "Student Library User",
+          "email": "student@jdlcitech.ph",
+          "passwordHash": "$2a$10$N9qo8uLOickgx2ZMRZoMye.M7eFWBmefyR2RjcPp/7dXyokbeTpx6",
+          "preferences": {
+            "notifications": true,
+            "defaultSearch": "keyword",
+            "displayMode": "compact"
+          },
+          "createdAt": {"$date": "2024-01-12T09:00:00.000Z"},
+          "lastLogin": {"$date": "2024-01-20T11:30:00.000Z"}
+        },
+        {
+          "_id": {"$oid": "6507f1f0abcd1234567890a4"},
+          "name": "Mary Johnson",
+          "email": "mary.johnson@library.org",
+          "passwordHash": "$2a$10$N9qo8uLOickgx2ZMRZoMye.M7eFWBmefyR2RjcPp/7dXyokbeTpx6",
+          "preferences": {
+            "notifications": true,
+            "defaultSearch": "isbn",
+            "displayMode": "grid"
+          },
+          "resetToken": null,
+          "resetTokenExpiry": null,
+          "createdAt": {"$date": "2024-01-08T13:20:00.000Z"},
+          "lastLogin": {"$date": "2024-01-20T09:15:00.000Z"}
+        }
+      ]
+    },
+    {
+      "name": "books",
+      "documents": [
+        {
+          "_id": {"$oid": "6507f1f0abcd1234567890b1"},
+          "title": "The Great Gatsby",
+          "author": "F. Scott Fitzgerald",
+          "isbn": "978-0-7432-7356-5",
+          "genre": "Classic Literature",
+          "publishedYear": 1925,
+          "publisher": "Charles Scribner's Sons",
+          "description": "A classic American novel set in the summer of 1922, exploring themes of decadence, idealism, resistance to change, social upheaval, and excess.",
+          "coverImage": "https://cdn.builder.io/api/v1/image/assets/TEMP/4d1e82e2e44be4f6344a8edb761420ae9581ab72?width=324",
+          "totalCopies": 5,
+          "availableCopies": 3,
+          "categories": ["Fiction", "Classic", "American Literature"],
+          "language": "English",
+          "pages": 180,
+          "addedDate": {"$date": "2024-01-01T00:00:00.000Z"},
+          "lastUpdated": {"$date": "2024-01-15T10:30:00.000Z"}
+        },
+        {
+          "_id": {"$oid": "6507f1f0abcd1234567890b2"},
+          "title": "Sometimes a Great Notion",
+          "author": "Ken Kesey",
+          "isbn": "978-0-14-004367-8",
+          "genre": "American Literature",
+          "publishedYear": 1964,
+          "publisher": "Viking Press",
+          "description": "A powerful novel about a logging family in Oregon, exploring themes of family, tradition, and the changing American West.",
+          "coverImage": "https://cdn.builder.io/api/v1/image/assets/TEMP/2317efad8487bf8bdeee4fcc13e8f8a64e8dc306?width=334",
+          "totalCopies": 3,
+          "availableCopies": 2,
+          "categories": ["Fiction", "American Literature", "Family Saga"],
+          "language": "English",
+          "pages": 628,
+          "addedDate": {"$date": "2024-01-02T00:00:00.000Z"},
+          "lastUpdated": {"$date": "2024-01-16T14:20:00.000Z"}
+        },
+        {
+          "_id": {"$oid": "6507f1f0abcd1234567890b3"},
+          "title": "The Great Divorce",
+          "author": "C.S. Lewis",
+          "isbn": "978-0-06-065209-3",
+          "genre": "Christian Literature",
+          "publishedYear": 1945,
+          "publisher": "Geoffrey Bles",
+          "description": "A theological fantasy novel exploring themes of good and evil, choice, and redemption.",
+          "coverImage": "https://cdn.builder.io/api/v1/image/assets/TEMP/79b68601f2a8971604c71ff5cd5cebeddd29f4bf?width=333",
+          "totalCopies": 4,
+          "availableCopies": 4,
+          "categories": ["Fiction", "Christian Literature", "Fantasy"],
+          "language": "English",
+          "pages": 146,
+          "addedDate": {"$date": "2024-01-03T00:00:00.000Z"},
+          "lastUpdated": {"$date": "2024-01-17T16:45:00.000Z"}
+        },
+        {
+          "_id": {"$oid": "6507f1f0abcd1234567890b4"},
+          "title": "Sunrise on the Reaping",
+          "author": "Suzanne Collins",
+          "isbn": "978-1-338-63517-3",
+          "genre": "Young Adult Fiction",
+          "publishedYear": 2024,
+          "publisher": "Scholastic Press",
+          "description": "The highly anticipated prequel to The Hunger Games trilogy, exploring the world of Panem decades before Katniss Everdeen.",
+          "coverImage": "https://cdn.builder.io/api/v1/image/assets/TEMP/34edae358b26ed6a89538e9afac38d52f316c31c?width=339",
+          "totalCopies": 8,
+          "availableCopies": 6,
+          "categories": ["Young Adult", "Dystopian", "Science Fiction"],
+          "language": "English",
+          "pages": 464,
+          "addedDate": {"$date": "2024-01-10T00:00:00.000Z"},
+          "lastUpdated": {"$date": "2024-01-18T12:00:00.000Z"}
+        },
+        {
+          "_id": {"$oid": "6507f1f0abcd1234567890b5"},
+          "title": "Intermezzo",
+          "author": "Sally Rooney",
+          "isbn": "978-0-374-60400-1",
+          "genre": "Contemporary Fiction",
+          "publishedYear": 2024,
+          "publisher": "Farrar, Straus and Giroux",
+          "description": "A nuanced exploration of grief, love, and family relationships in contemporary Ireland.",
+          "coverImage": "https://cdn.builder.io/api/v1/image/assets/TEMP/13643314ca30ce6917105bcb4ffdce9b411d2806?width=317",
+          "totalCopies": 6,
+          "availableCopies": 5,
+          "categories": ["Fiction", "Contemporary", "Literary Fiction"],
+          "language": "English",
+          "pages": 448,
+          "addedDate": {"$date": "2024-01-12T00:00:00.000Z"},
+          "lastUpdated": {"$date": "2024-01-19T08:30:00.000Z"}
+        },
+        {
+          "_id": {"$oid": "6507f1f0abcd1234567890b6"},
+          "title": "Main Street Millionaire",
+          "author": "Codie Sanchez",
+          "isbn": "978-0-593-54321-9",
+          "genre": "Business",
+          "publishedYear": 2024,
+          "publisher": "Portfolio",
+          "description": "A practical guide to building wealth through small business ownership and investment strategies.",
+          "coverImage": "https://cdn.builder.io/api/v1/image/assets/TEMP/b3085b1bccc4fb6986e6b397dc396a1fe957eb91?width=348",
+          "totalCopies": 4,
+          "availableCopies": 3,
+          "categories": ["Business", "Finance", "Entrepreneurship"],
+          "language": "English",
+          "pages": 288,
+          "addedDate": {"$date": "2024-01-14T00:00:00.000Z"},
+          "lastUpdated": {"$date": "2024-01-20T10:15:00.000Z"}
+        }
+      ]
+    },
+    {
+      "name": "borrowed_books",
+      "documents": [
+        {
+          "_id": {"$oid": "6507f1f0abcd1234567890c1"},
+          "userId": {"$oid": "6507f1f0abcd1234567890a1"},
+          "bookId": {"$oid": "6507f1f0abcd1234567890b1"},
+          "borrowDate": {"$date": "2024-01-18T10:00:00.000Z"},
+          "dueDate": {"$date": "2024-02-15T23:59:59.000Z"},
+          "returnDate": null,
+          "status": "borrowed",
+          "renewalCount": 0,
+          "maxRenewals": 2
+        },
+        {
+          "_id": {"$oid": "6507f1f0abcd1234567890c2"},
+          "userId": {"$oid": "6507f1f0abcd1234567890a2"},
+          "bookId": {"$oid": "6507f1f0abcd1234567890b4"},
+          "borrowDate": {"$date": "2024-01-16T14:30:00.000Z"},
+          "dueDate": {"$date": "2024-02-13T23:59:59.000Z"},
+          "returnDate": null,
+          "status": "borrowed",
+          "renewalCount": 1,
+          "maxRenewals": 2
+        },
+        {
+          "_id": {"$oid": "6507f1f0abcd1234567890c3"},
+          "userId": {"$oid": "6507f1f0abcd1234567890a1"},
+          "bookId": {"$oid": "6507f1f0abcd1234567890b2"},
+          "borrowDate": {"$date": "2024-01-05T11:15:00.000Z"},
+          "dueDate": {"$date": "2024-02-02T23:59:59.000Z"},
+          "returnDate": {"$date": "2024-01-20T16:30:00.000Z"},
+          "status": "returned",
+          "renewalCount": 0,
+          "maxRenewals": 2
+        }
+      ]
+    },
+    {
+      "name": "search_history",
+      "documents": [
+        {
+          "_id": {"$oid": "6507f1f0abcd1234567890d1"},
+          "userId": {"$oid": "6507f1f0abcd1234567890a1"},
+          "searchQuery": "great gatsby",
+          "searchType": "title",
+          "resultsCount": 1,
+          "searchDate": {"$date": "2024-01-20T14:15:00.000Z"}
+        },
+        {
+          "_id": {"$oid": "6507f1f0abcd1234567890d2"},
+          "userId": {"$oid": "6507f1f0abcd1234567890a1"},
+          "searchQuery": "science fiction",
+          "searchType": "keyword",
+          "resultsCount": 3,
+          "searchDate": {"$date": "2024-01-19T16:22:00.000Z"}
+        },
+        {
+          "_id": {"$oid": "6507f1f0abcd1234567890d3"},
+          "userId": {"$oid": "6507f1f0abcd1234567890a2"},
+          "searchQuery": "sally rooney",
+          "searchType": "author",
+          "resultsCount": 1,
+          "searchDate": {"$date": "2024-01-18T13:45:00.000Z"}
+        },
+        {
+          "_id": {"$oid": "6507f1f0abcd1234567890d4"},
+          "userId": {"$oid": "6507f1f0abcd1234567890a3"},
+          "searchQuery": "business finance",
+          "searchType": "keyword",
+          "resultsCount": 2,
+          "searchDate": {"$date": "2024-01-17T09:30:00.000Z"}
+        }
+      ]
+    },
+    {
+      "name": "reservations",
+      "documents": [
+        {
+          "_id": {"$oid": "6507f1f0abcd1234567890e1"},
+          "userId": {"$oid": "6507f1f0abcd1234567890a3"},
+          "bookId": {"$oid": "6507f1f0abcd1234567890b1"},
+          "reservationDate": {"$date": "2024-01-19T12:00:00.000Z"},
+          "expiryDate": {"$date": "2024-01-26T23:59:59.000Z"},
+          "status": "active",
+          "position": 1
+        },
+        {
+          "_id": {"$oid": "6507f1f0abcd1234567890e2"},
+          "userId": {"$oid": "6507f1f0abcd1234567890a4"},
+          "bookId": {"$oid": "6507f1f0abcd1234567890b4"},
+          "reservationDate": {"$date": "2024-01-20T08:30:00.000Z"},
+          "expiryDate": {"$date": "2024-01-27T23:59:59.000Z"},
+          "status": "active",
+          "position": 1
+        }
+      ]
+    },
+    {
+      "name": "categories",
+      "documents": [
+        {
+          "_id": {"$oid": "6507f1f0abcd1234567890f1"},
+          "name": "Fiction",
+          "description": "Imaginative literature including novels and short stories",
+          "bookCount": 4,
+          "createdDate": {"$date": "2024-01-01T00:00:00.000Z"}
+        },
+        {
+          "_id": {"$oid": "6507f1f0abcd1234567890f2"},
+          "name": "Business",
+          "description": "Books on business strategy, finance, and entrepreneurship",
+          "bookCount": 1,
+          "createdDate": {"$date": "2024-01-01T00:00:00.000Z"}
+        },
+        {
+          "_id": {"$oid": "6507f1f0abcd1234567890f3"},
+          "name": "Young Adult",
+          "description": "Literature targeted at teenage and young adult readers",
+          "bookCount": 1,
+          "createdDate": {"$date": "2024-01-01T00:00:00.000Z"}
+        },
+        {
+          "_id": {"$oid": "6507f1f0abcd1234567890f4"},
+          "name": "Classic Literature",
+          "description": "Timeless works of literature from renowned authors",
+          "bookCount": 2,
+          "createdDate": {"$date": "2024-01-01T00:00:00.000Z"}
+        }
+      ]
+    },
+    {
+      "name": "library_settings",
+      "documents": [
+        {
+          "_id": {"$oid": "6507f1f0abcd1234567890g1"},
+          "settingKey": "maxBorrowPeriod",
+          "settingValue": 28,
+          "description": "Maximum number of days a book can be borrowed",
+          "dataType": "number"
+        },
+        {
+          "_id": {"$oid": "6507f1f0abcd1234567890g2"},
+          "settingKey": "maxRenewals",
+          "settingValue": 2,
+          "description": "Maximum number of times a book can be renewed",
+          "dataType": "number"
+        },
+        {
+          "_id": {"$oid": "6507f1f0abcd1234567890g3"},
+          "settingKey": "maxBooksPerUser",
+          "settingValue": 5,
+          "description": "Maximum number of books a user can borrow simultaneously",
+          "dataType": "number"
+        },
+        {
+          "_id": {"$oid": "6507f1f0abcd1234567890g4"},
+          "settingKey": "reservationExpiryDays",
+          "settingValue": 7,
+          "description": "Number of days a reservation remains active",
+          "dataType": "number"
+        },
+        {
+          "_id": {"$oid": "6507f1f0abcd1234567890g5"},
+          "settingKey": "libraryName",
+          "settingValue": "CIT Digital Library",
+          "description": "Name of the library institution",
+          "dataType": "string"
+        }
+      ]
+    }
+  ]
+} 

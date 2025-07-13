@@ -91,6 +91,17 @@ export default function Index() {
     setIsRegisterModalOpen(false);
   };
 
+  const handleLoginSuccess = () => {
+    // After successful login, redirect to My Account page
+    navigate("/my-account");
+  };
+
+  const handleRegistrationSuccess = () => {
+    // After successful registration, show login modal
+    setIsRegisterModalOpen(false);
+    setIsLoginModalOpen(true);
+  };
+
   const handleSearch = () => {
     if (searchQuery.trim()) {
       navigate(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
@@ -306,12 +317,17 @@ export default function Index() {
       </div>
 
       {/* Login Modal */}
-      <LoginModal isOpen={isLoginModalOpen} onClose={handleCloseLoginModal} />
+      <LoginModal 
+        isOpen={isLoginModalOpen} 
+        onClose={handleCloseLoginModal}
+        onLoginSuccess={handleLoginSuccess}
+      />
 
       {/* Register Modal */}
       <RegisterModal
         isOpen={isRegisterModalOpen}
         onClose={handleCloseRegisterModal}
+        onRegistrationSuccess={handleRegistrationSuccess}
       />
     </div>
   );
