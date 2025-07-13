@@ -3,9 +3,10 @@ import cors from "cors";
 import { handleDemo } from "./routes/demo";
 import { getProfile, updateProfile, changePassword, deleteProfile } from "./routes/profile";
 import mongoose from "mongoose";
-import { register, login, forgotPassword, resetPassword, getUserSessions, revokeSession, revokeAllSessions, refreshSession, verifyTokenWithSession, requireAdmin, requireLibrarian } from "./routes/auth";
+import { register, login, forgotPassword, resetPassword, getUserSessions, revokeSession, revokeAllSessions, refreshSession, verifyTokenWithSession, requireAdmin, requireLibrarian, requireUser } from "./routes/auth";
 import { getAdminStats, getUsers, createUser, updateUser, deleteUser, getBooks, createBook, updateBook, deleteBook } from "./routes/admin";
 import { getLibrarianDashboard, getLibrarianBooks, issueBook, returnBook, getLoans, getOverdueBooks, getReservations, searchUsers, getUserLoans } from "./routes/librarian";
+import { getStudentStats, getBooksForStudent, getStudentLoans, renewLoan, getStudentReservations, createReservation, cancelReservation, getStudentFines, getStudentNotifications, markNotificationAsRead, submitFeedback, submitBookSuggestion, getStudentProfile } from "./routes/student";
 
 export function createServer() {
   const app = express();
@@ -77,6 +78,21 @@ export function createServer() {
   app.get("/api/librarian/reservations", verifyTokenWithSession, requireLibrarian, getReservations);
   app.get("/api/librarian/users/search", verifyTokenWithSession, requireLibrarian, searchUsers);
   app.get("/api/librarian/users/:id/loans", verifyTokenWithSession, requireLibrarian, getUserLoans);
+
+  // Student routes
+  app.get("/api/student/stats", verifyTokenWithSession, requireUser, getStudentStats);
+  app.get("/api/student/books", verifyTokenWithSession, requireUser, getBooksForStudent);
+  app.get("/api/student/loans", verifyTokenWithSession, requireUser, getStudentLoans);
+  app.post("/api/student/loans/:id/renew", verifyTokenWithSession, requireUser, renewLoan);
+  app.get("/api/student/reservations", verifyTokenWithSession, requireUser, getStudentReservations);
+  app.post("/api/student/reservations", verifyTokenWithSession, requireUser, createReservation);
+  app.delete("/api/student/reservations/:id", verifyTokenWithSession, requireUser, cancelReservation);
+  app.get("/api/student/fines", verifyTokenWithSession, requireUser, getStudentFines);
+  app.get("/api/student/notifications", verifyTokenWithSession, requireUser, getStudentNotifications);
+  app.post("/api/student/notifications/:id/read", verifyTokenWithSession, requireUser, markNotificationAsRead);
+  app.post("/api/student/feedback", verifyTokenWithSession, requireUser, submitFeedback);
+  app.post("/api/student/suggestions", verifyTokenWithSession, requireUser, submitBookSuggestion);
+  app.get("/api/student/profile", verifyTokenWithSession, requireUser, getStudentProfile);
 
   return app;
 }
