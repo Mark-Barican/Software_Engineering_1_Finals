@@ -43,12 +43,16 @@ export async function getAdminStats(req: Request, res: Response) {
       addedDate: { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) }
     });
 
-    // Mock data for demo purposes
+    // Get real loan and reservation data
+    const { Loan, Reservation } = require('./librarian');
+    const activeLoans = await Loan.countDocuments({ status: 'active' });
+    const pendingReservations = await Reservation.countDocuments({ status: 'pending' });
+
     const stats = {
       totalUsers,
       totalBooks,
-      activeLoans: 432, // TODO: Implement loan tracking
-      pendingReservations: 67, // TODO: Implement reservation tracking
+      activeLoans,
+      pendingReservations,
       newUsersToday,
       booksAddedThisMonth,
       systemStatus: 'healthy' as const

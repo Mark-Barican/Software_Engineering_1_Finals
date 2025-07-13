@@ -1,10 +1,11 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/use-auth";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
 import ProfileEditForm from "../components/ProfileEditForm";
 import PasswordChangeForm from "../components/PasswordChangeForm";
 import UserPreferencesForm from "../components/UserPreferencesForm";
@@ -22,26 +23,37 @@ import {
   Mail, 
   Calendar,
   Activity,
-  Monitor
+  Monitor,
+  BookOpen,
+  Clock,
+  Star,
+  Users,
+  UserCheck,
+  BookPlus
 } from "lucide-react";
+
+interface UserStats {
+  first: { label: string; value: number; icon: React.ReactNode; color: string };
+  second: { label: string; value: number; icon: React.ReactNode; color: string };
+  third?: { label: string; value: number; icon: React.ReactNode; color: string };
+}
 
 export default function MyAccount() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("profile");
+  const [userStats, setUserStats] = useState<UserStats | null>(null);
+  const [loading, setLoading] = useState(true);
 
   const handleProfileSaved = () => {
-    // Could show a success message or redirect
     console.log("Profile saved successfully");
   };
 
   const handlePasswordChanged = () => {
-    // Could show a success message
     console.log("Password changed successfully");
   };
 
   const handlePreferencesSaved = () => {
-    // Could show a success message
     console.log("Preferences saved successfully");
   };
 
@@ -59,14 +71,246 @@ export default function MyAccount() {
     }).format(date);
   };
 
+  const loadUserStats = async () => {
+    try {
+      const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+      if (!token || !user) return;
+
+      let stats: UserStats;
+
+      if (user.role === 'user') {
+        // Student statistics
+        const response = await fetch('/api/student/stats', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          stats = {
+            first: {
+              label: 'Books Borrowed',
+              value: data.totalBorrowed || 0,
+              icon: <BookOpen className="w-6 h-6" />,
+              color: 'blue'
+            },
+            second: {
+              label: 'Active Loans',
+              value: data.currentLoans || 0,
+              icon: <Clock className="w-6 h-6" />,
+              color: 'green'
+            }
+          };
+        } else {
+          // Fallback for students
+          stats = {
+            first: {
+              label: 'Books Borrowed',
+              value: 0,
+              icon: <BookOpen className="w-6 h-6" />,
+              color: 'blue'
+            },
+            second: {
+              label: 'Searches Made',
+              value: 0,
+              icon: <Activity className="w-6 h-6" />,
+              color: 'green'
+            }
+          };
+        }
+      } else if (user.role === 'librarian') {
+        // Librarian statistics
+        try {
+          const response = await fetch('/api/librarian/dashboard', {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            stats = {
+              first: {
+                label: 'Active Loans',
+                value: data.totalLoans || 0,
+                icon: <UserCheck className="w-6 h-6" />,
+                color: 'blue'
+              },
+              second: {
+                label: 'Books Managed',
+                value: data.totalBooks || 0,
+                icon: <BookOpen className="w-6 h-6" />,
+                color: 'green'
+              }
+            };
+          } else {
+            // Fallback for librarians
+            stats = {
+              first: {
+                label: 'Books Managed',
+                value: 0,
+                icon: <BookOpen className="w-6 h-6" />,
+                color: 'blue'
+              },
+              second: {
+                label: 'Users Helped',
+                value: 0,
+                icon: <Users className="w-6 h-6" />,
+                color: 'green'
+              }
+            };
+          }
+        } catch (error) {
+          // Fallback for librarians
+          stats = {
+            first: {
+              label: 'Books Managed',
+              value: 0,
+              icon: <BookOpen className="w-6 h-6" />,
+              color: 'blue'
+            },
+            second: {
+              label: 'Users Helped',
+              value: 0,
+              icon: <Users className="w-6 h-6" />,
+              color: 'green'
+            }
+          };
+        }
+      } else if (user.role === 'admin') {
+        // Admin statistics
+        try {
+          const response = await fetch('/api/admin/stats', {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            stats = {
+              first: {
+                label: 'Total Users',
+                value: data.totalUsers || 0,
+                icon: <Users className="w-6 h-6" />,
+                color: 'blue'
+              },
+              second: {
+                label: 'Total Books',
+                value: data.totalBooks || 0,
+                icon: <BookOpen className="w-6 h-6" />,
+                color: 'green'
+              },
+              third: {
+                label: 'Active Loans',
+                value: data.activeLoans || 0,
+                icon: <Activity className="w-6 h-6" />,
+                color: 'purple'
+              }
+            };
+          } else {
+            // Fallback for admins
+            stats = {
+              first: {
+                label: 'Users Managed',
+                value: 0,
+                icon: <Users className="w-6 h-6" />,
+                color: 'blue'
+              },
+              second: {
+                label: 'Books Managed',
+                value: 0,
+                icon: <BookOpen className="w-6 h-6" />,
+                color: 'green'
+              }
+            };
+          }
+        } catch (error) {
+          // Fallback for admins
+          stats = {
+            first: {
+              label: 'Users Managed',
+              value: 0,
+              icon: <Users className="w-6 h-6" />,
+              color: 'blue'
+            },
+            second: {
+              label: 'Books Managed',
+              value: 0,
+              icon: <BookOpen className="w-6 h-6" />,
+              color: 'green'
+            }
+          };
+        }
+      } else {
+        // Default fallback
+        stats = {
+          first: {
+            label: 'Profile Views',
+            value: 0,
+            icon: <Activity className="w-6 h-6" />,
+            color: 'blue'
+          },
+          second: {
+            label: 'Searches Made',
+            value: 0,
+            icon: <Activity className="w-6 h-6" />,
+            color: 'green'
+          }
+        };
+      }
+
+      setUserStats(stats);
+    } catch (error) {
+      console.error('Error loading user stats:', error);
+      // Set fallback stats
+      setUserStats({
+        first: {
+          label: 'Profile Views',
+          value: 0,
+          icon: <Activity className="w-6 h-6" />,
+          color: 'blue'
+        },
+        second: {
+          label: 'Account Activity',
+          value: 0,
+          icon: <Activity className="w-6 h-6" />,
+          color: 'green'
+        }
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (user) {
+      loadUserStats();
+    }
+  }, [user]);
+
+  const getColorClasses = (color: string) => {
+    switch (color) {
+      case 'blue':
+        return 'bg-blue-50 border-blue-100 text-blue-700';
+      case 'green':
+        return 'bg-green-50 border-green-100 text-green-700';
+      case 'purple':
+        return 'bg-purple-50 border-purple-100 text-purple-700';
+      case 'orange':
+        return 'bg-orange-50 border-orange-100 text-orange-700';
+      default:
+        return 'bg-gray-50 border-gray-100 text-gray-700';
+    }
+  };
+
   if (!user) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
-        <div className="text-center">
-          <h1 className="text-2xl font-abhaya mb-4">Please log in to access your account</h1>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center space-y-6">
+          <User className="w-16 h-16 text-gray-400 mx-auto" />
+          <div className="space-y-2">
+            <h1 className="text-2xl font-bold text-gray-900">Authentication Required</h1>
+            <p className="text-gray-600">Please log in to access your account</p>
+          </div>
           <Link
             to="/"
-            className="px-6 py-3 bg-brand-orange text-white rounded-full font-bold hover:bg-brand-orange-light transition-colors"
+            className="inline-flex items-center px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
           >
             Go to Homepage
           </Link>
@@ -76,30 +320,28 @@ export default function MyAccount() {
   }
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="border-b border-brand-border-light bg-white">
-        <div className="max-w-7xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
+      <div className="bg-white border-b border-gray-200 shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
+            <div className="flex items-center space-x-4">
               <Button
                 variant="ghost"
                 onClick={() => navigate("/")}
-                className="flex items-center gap-2 text-black hover:text-brand-orange"
+                className="flex items-center gap-2 text-gray-600 hover:text-gray-900"
               >
-                <ArrowLeft className="w-5 h-5" />
+                <ArrowLeft className="w-4 h-4" />
                 Back to Library
               </Button>
               
-              <div className="flex items-center gap-3">
-                <img src="/logo.jpg" alt="Logo" className="h-12 w-12" />
+              <Separator orientation="vertical" className="h-6" />
+              
+              <div className="flex items-center space-x-3">
+                <img src="/logo.jpg" alt="Logo" className="h-8 w-8 rounded" />
                 <div>
-                  <h1 className="text-2xl font-abhaya font-bold text-brand-text-primary">
-                    My Account
-                  </h1>
-                  <p className="text-sm text-brand-text-secondary">
-                    Manage your library account and preferences
-                  </p>
+                  <h1 className="text-xl font-semibold text-gray-900">My Account</h1>
+                  <p className="text-sm text-gray-500">Manage your library profile</p>
                 </div>
               </div>
             </div>
@@ -107,7 +349,7 @@ export default function MyAccount() {
             <Button
               onClick={logout}
               variant="outline"
-              className="flex items-center gap-2 border-red-300 text-red-600 hover:bg-red-50"
+              className="flex items-center gap-2 border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300"
             >
               <Lock className="w-4 h-4" />
               Logout
@@ -117,274 +359,420 @@ export default function MyAccount() {
       </div>
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-6 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+          
           {/* Sidebar - User Overview */}
-          <FadeIn delay={100}>
-            <div className="lg:col-span-1">
-              <Card>
-              <CardHeader className="text-center">
-                <div className="w-20 h-20 bg-brand-orange rounded-full flex items-center justify-center mx-auto mb-4">
-                  <User className="w-10 h-10 text-white" />
-                </div>
-                <CardTitle className="text-xl font-abhaya">{user.name}</CardTitle>
-                <CardDescription className="font-actor">{user.email}</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">Account Status</span>
-                    <Badge variant="default" className="bg-green-100 text-green-800">
-                      Active
-                    </Badge>
+          <div className="lg:col-span-4 xl:col-span-3">
+            <FadeIn delay={100}>
+              <Card className="overflow-hidden">
+                <CardHeader className="text-center bg-gradient-to-br from-blue-50 to-indigo-50 pb-6">
+                  <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
+                    <User className="w-10 h-10 text-white" />
                   </div>
-                  
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">Member Since</span>
-                    <span className="text-sm text-gray-600">
-                      {formatDate(new Date())}
-                    </span>
-                  </div>
-                  
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">Last Login</span>
-                    <span className="text-sm text-gray-600">
-                      {formatDate(new Date())}
-                    </span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            </div>
-          </FadeIn>
+                  <CardTitle className="text-xl font-semibold text-gray-900">{user.name}</CardTitle>
+                  <CardDescription className="text-gray-600">{user.email}</CardDescription>
+                  <Badge className="mt-2 bg-green-100 text-green-800 border-green-200">
+                    Active Account
+                  </Badge>
+                </CardHeader>
+                
+                <CardContent className="p-6">
+                  <div className="space-y-6">
+                    {/* Account Info */}
+                    <div className="space-y-4">
+                      <h3 className="font-medium text-gray-900 flex items-center gap-2">
+                        <Calendar className="w-4 h-4" />
+                        Account Details
+                      </h3>
+                      
+                      <div className="space-y-3">
+                        <div className="flex justify-between items-center py-2">
+                          <span className="text-sm text-gray-600">Member Since</span>
+                          <span className="text-sm font-medium text-gray-900">
+                            {formatDate(new Date())}
+                          </span>
+                        </div>
+                        
+                        <div className="flex justify-between items-center py-2">
+                          <span className="text-sm text-gray-600">Last Login</span>
+                          <span className="text-sm font-medium text-gray-900">
+                            {formatDate(new Date())}
+                          </span>
+                        </div>
+                        
+                        <div className="flex justify-between items-center py-2">
+                          <span className="text-sm text-gray-600">Role</span>
+                          <Badge variant="secondary" className="text-xs">
+                            {user.role === 'admin' ? 'Administrator' : 
+                             user.role === 'librarian' ? 'Librarian' : 'Student'}
+                          </Badge>
+                        </div>
+                      </div>
+                    </div>
 
-          {/* Main Content Area */}
-          <FadeIn delay={200}>
-            <div className="lg:col-span-3">
-            <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <TabsList className="grid w-full grid-cols-5">
-                <TabsTrigger value="profile" className="flex items-center gap-2">
-                  <User className="w-4 h-4" />
-                  Profile
-                </TabsTrigger>
-                <TabsTrigger value="security" className="flex items-center gap-2">
-                  <Shield className="w-4 h-4" />
-                  Security
-                </TabsTrigger>
-                <TabsTrigger value="preferences" className="flex items-center gap-2">
-                  <Settings className="w-4 h-4" />
-                  Preferences
-                </TabsTrigger>
-                <TabsTrigger value="sessions" className="flex items-center gap-2">
-                  <Monitor className="w-4 h-4" />
-                  Sessions
-                </TabsTrigger>
-                <TabsTrigger value="account" className="flex items-center gap-2">
-                  <Activity className="w-4 h-4" />
-                  Account
-                </TabsTrigger>
-              </TabsList>
+                    <Separator />
 
-              {/* Profile Tab */}
-              <TabsContent value="profile" className="space-y-6">
-                <div className="space-y-4">
-                  <div>
-                    <h2 className="text-2xl font-abhaya font-bold text-brand-text-primary">
-                      Profile Information
-                    </h2>
-                    <p className="text-brand-text-secondary font-actor">
-                      Update your personal information and contact details
-                    </p>
-                  </div>
-                  
-                  <ProfileEditForm onSave={handleProfileSaved} />
-                </div>
-              </TabsContent>
-
-              {/* Security Tab */}
-              <TabsContent value="security" className="space-y-6">
-                <div className="space-y-4">
-                  <div>
-                    <h2 className="text-2xl font-abhaya font-bold text-brand-text-primary">
-                      Security Settings
-                    </h2>
-                    <p className="text-brand-text-secondary font-actor">
-                      Manage your password and account security
-                    </p>
-                  </div>
-                  
-                  <div className="grid gap-6">
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                          <Lock className="w-5 h-5" />
-                          Password
-                        </CardTitle>
-                        <CardDescription>
-                          Last changed: {formatDate(new Date())}
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        <PasswordChangeForm onSuccess={handlePasswordChanged} />
-                      </CardContent>
-                    </Card>
-
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                          <Shield className="w-5 h-5" />
-                          Account Security
-                        </CardTitle>
-                        <CardDescription>
-                          Additional security measures for your account
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="space-y-4">
-                          <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                            <div>
-                              <h4 className="font-medium">Two-Factor Authentication</h4>
-                              <p className="text-sm text-gray-600">
-                                Add an extra layer of security to your account
-                              </p>
+                    {/* Quick Stats */}
+                    <div className="space-y-4">
+                      <h3 className="font-medium text-gray-900 flex items-center gap-2">
+                        <Activity className="w-4 h-4" />
+                        Activity Summary
+                      </h3>
+                      
+                      {loading ? (
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="text-center p-3 bg-gray-100 rounded-lg border animate-pulse">
+                            <div className="w-6 h-6 bg-gray-300 rounded mx-auto mb-2"></div>
+                            <div className="h-4 bg-gray-300 rounded mb-1"></div>
+                            <div className="h-3 bg-gray-300 rounded"></div>
+                          </div>
+                          <div className="text-center p-3 bg-gray-100 rounded-lg border animate-pulse">
+                            <div className="w-6 h-6 bg-gray-300 rounded mx-auto mb-2"></div>
+                            <div className="h-4 bg-gray-300 rounded mb-1"></div>
+                            <div className="h-3 bg-gray-300 rounded"></div>
+                          </div>
+                        </div>
+                      ) : userStats ? (
+                        <div className={`grid ${userStats.third ? 'grid-cols-1' : 'grid-cols-2'} gap-3`}>
+                          <div className={`text-center p-3 rounded-lg border ${getColorClasses(userStats.first.color)}`}>
+                            <div className="flex justify-center mb-2">
+                              {userStats.first.icon}
                             </div>
-                            <Badge variant="secondary">Coming Soon</Badge>
+                            <div className="text-lg font-semibold">{userStats.first.value}</div>
+                            <div className="text-xs">{userStats.first.label}</div>
                           </div>
                           
-                          <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                            <div>
-                              <h4 className="font-medium">Login History</h4>
-                              <p className="text-sm text-gray-600">
-                                View recent login activity
-                              </p>
+                          <div className={`text-center p-3 rounded-lg border ${getColorClasses(userStats.second.color)}`}>
+                            <div className="flex justify-center mb-2">
+                              {userStats.second.icon}
                             </div>
-                            <Badge variant="secondary">Coming Soon</Badge>
+                            <div className="text-lg font-semibold">{userStats.second.value}</div>
+                            <div className="text-xs">{userStats.second.label}</div>
                           </div>
+                          
+                          {userStats.third && (
+                            <div className={`text-center p-3 rounded-lg border ${getColorClasses(userStats.third.color)} col-span-2`}>
+                              <div className="flex justify-center mb-2">
+                                {userStats.third.icon}
+                              </div>
+                              <div className="text-lg font-semibold">{userStats.third.value}</div>
+                              <div className="text-xs">{userStats.third.label}</div>
+                            </div>
+                          )}
                         </div>
+                      ) : (
+                        <div className="text-center py-4 text-gray-500">
+                          <Activity className="w-8 h-8 mx-auto mb-2 text-gray-400" />
+                          <p className="text-sm">No activity data available</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </FadeIn>
+          </div>
+
+          {/* Main Content Area */}
+          <div className="lg:col-span-8 xl:col-span-9">
+            <FadeIn delay={200}>
+              <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+                
+                {/* Tab Navigation */}
+                <div className="bg-white rounded-lg border border-gray-200 p-2">
+                  <TabsList className="grid w-full grid-cols-5 bg-gray-50">
+                    <TabsTrigger 
+                      value="profile" 
+                      className="flex items-center gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm"
+                    >
+                      <User className="w-4 h-4" />
+                      <span className="hidden sm:inline">Profile</span>
+                    </TabsTrigger>
+                    <TabsTrigger 
+                      value="security" 
+                      className="flex items-center gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm"
+                    >
+                      <Shield className="w-4 h-4" />
+                      <span className="hidden sm:inline">Security</span>
+                    </TabsTrigger>
+                    <TabsTrigger 
+                      value="preferences" 
+                      className="flex items-center gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm"
+                    >
+                      <Settings className="w-4 h-4" />
+                      <span className="hidden sm:inline">Preferences</span>
+                    </TabsTrigger>
+                    <TabsTrigger 
+                      value="sessions" 
+                      className="flex items-center gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm"
+                    >
+                      <Monitor className="w-4 h-4" />
+                      <span className="hidden sm:inline">Sessions</span>
+                    </TabsTrigger>
+                    <TabsTrigger 
+                      value="account" 
+                      className="flex items-center gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm"
+                    >
+                      <Activity className="w-4 h-4" />
+                      <span className="hidden sm:inline">Account</span>
+                    </TabsTrigger>
+                  </TabsList>
+                </div>
+
+                {/* Profile Tab */}
+                <TabsContent value="profile" className="space-y-6">
+                  <div className="space-y-6">
+                    <div className="space-y-2">
+                      <h2 className="text-2xl font-semibold text-gray-900">
+                        Profile Information
+                      </h2>
+                      <p className="text-gray-600">
+                        Update your personal information and contact details
+                      </p>
+                    </div>
+                    
+                    <Card className="border-gray-200 shadow-sm">
+                      <CardContent className="p-6">
+                        <ProfileEditForm onSave={handleProfileSaved} />
                       </CardContent>
                     </Card>
                   </div>
-                </div>
-              </TabsContent>
+                </TabsContent>
 
-              {/* Preferences Tab */}
-              <TabsContent value="preferences" className="space-y-6">
-                <div className="space-y-4">
-                  <div>
-                    <h2 className="text-2xl font-abhaya font-bold text-brand-text-primary">
-                      User Preferences
-                    </h2>
-                    <p className="text-brand-text-secondary font-actor">
-                      Customize your library experience and notifications
-                    </p>
-                  </div>
-                  
-                  <UserPreferencesForm onSave={handlePreferencesSaved} />
-                </div>
-              </TabsContent>
+                {/* Security Tab */}
+                <TabsContent value="security" className="space-y-6">
+                  <div className="space-y-6">
+                    <div className="space-y-2">
+                      <h2 className="text-2xl font-semibold text-gray-900">
+                        Security Settings
+                      </h2>
+                      <p className="text-gray-600">
+                        Manage your password and account security
+                      </p>
+                    </div>
+                    
+                    <div className="grid gap-6">
+                      <Card className="border-gray-200 shadow-sm">
+                        <CardHeader className="pb-4">
+                          <CardTitle className="flex items-center gap-2 text-lg">
+                            <Lock className="w-5 h-5 text-gray-600" />
+                            Password Management
+                          </CardTitle>
+                          <CardDescription>
+                            Last changed: {formatDate(new Date())}
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent className="pt-0">
+                          <PasswordChangeForm onSuccess={handlePasswordChanged} />
+                        </CardContent>
+                      </Card>
 
-              {/* Sessions Tab */}
-              <TabsContent value="sessions" className="space-y-6">
-                <div className="space-y-4">
-                  <div>
-                    <h2 className="text-2xl font-abhaya font-bold text-brand-text-primary">
-                      Session Management
-                    </h2>
-                    <p className="text-brand-text-secondary font-actor">
-                      View and manage your active sessions across all devices
-                    </p>
+                      <Card className="border-gray-200 shadow-sm">
+                        <CardHeader className="pb-4">
+                          <CardTitle className="flex items-center gap-2 text-lg">
+                            <Shield className="w-5 h-5 text-gray-600" />
+                            Additional Security
+                          </CardTitle>
+                          <CardDescription>
+                            Enhanced security features for your account
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent className="pt-0">
+                          <div className="space-y-4">
+                            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">
+                              <div className="space-y-1">
+                                <h4 className="font-medium text-gray-900">Two-Factor Authentication</h4>
+                                <p className="text-sm text-gray-600">
+                                  Add an extra layer of security to your account
+                                </p>
+                              </div>
+                              <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
+                                Coming Soon
+                              </Badge>
+                            </div>
+                            
+                            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">
+                              <div className="space-y-1">
+                                <h4 className="font-medium text-gray-900">Login History</h4>
+                                <p className="text-sm text-gray-600">
+                                  View recent login activity and suspicious attempts
+                                </p>
+                              </div>
+                              <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
+                                Coming Soon
+                              </Badge>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </div>
                   </div>
-                  
-                  <SessionManagement />
-                </div>
-              </TabsContent>
+                </TabsContent>
 
-              {/* Account Tab */}
-              <TabsContent value="account" className="space-y-6">
-                <div className="space-y-4">
-                  <div>
-                    <h2 className="text-2xl font-abhaya font-bold text-brand-text-primary">
-                      Account Management
-                    </h2>
-                    <p className="text-brand-text-secondary font-actor">
-                      Manage your account settings and data
-                    </p>
+                {/* Preferences Tab */}
+                <TabsContent value="preferences" className="space-y-6">
+                  <div className="space-y-6">
+                    <div className="space-y-2">
+                      <h2 className="text-2xl font-semibold text-gray-900">
+                        User Preferences
+                      </h2>
+                      <p className="text-gray-600">
+                        Customize your library experience and notifications
+                      </p>
+                    </div>
+                    
+                    <Card className="border-gray-200 shadow-sm">
+                      <CardContent className="p-6">
+                        <UserPreferencesForm onSave={handlePreferencesSaved} />
+                      </CardContent>
+                    </Card>
                   </div>
-                  
-                  <div className="grid gap-6">
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                          <Mail className="w-5 h-5" />
-                          Email Settings
-                        </CardTitle>
-                        <CardDescription>
-                          Manage your email preferences and communication
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="space-y-4">
-                          <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                            <div>
-                              <h4 className="font-medium">Email Notifications</h4>
-                              <p className="text-sm text-gray-600">
+                </TabsContent>
+
+                {/* Sessions Tab */}
+                <TabsContent value="sessions" className="space-y-6">
+                  <div className="space-y-6">
+                    <div className="space-y-2">
+                      <h2 className="text-2xl font-semibold text-gray-900">
+                        Session Management
+                      </h2>
+                      <p className="text-gray-600">
+                        View and manage your active sessions across all devices
+                      </p>
+                    </div>
+                    
+                    <Card className="border-gray-200 shadow-sm">
+                      <CardContent className="p-6">
+                        <SessionManagement />
+                      </CardContent>
+                    </Card>
+                  </div>
+                </TabsContent>
+
+                {/* Account Tab */}
+                <TabsContent value="account" className="space-y-6">
+                  <div className="space-y-6">
+                    <div className="space-y-2">
+                      <h2 className="text-2xl font-semibold text-gray-900">
+                        Account Management
+                      </h2>
+                      <p className="text-gray-600">
+                        Manage your account settings and data
+                      </p>
+                    </div>
+                    
+                    <div className="grid gap-6">
+                      <Card className="border-gray-200 shadow-sm">
+                        <CardHeader className="pb-4">
+                          <CardTitle className="flex items-center gap-2 text-lg">
+                            <Mail className="w-5 h-5 text-gray-600" />
+                            Email & Communication
+                          </CardTitle>
+                          <CardDescription>
+                            Manage your email preferences and communication settings
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent className="pt-0">
+                          <div className="space-y-4">
+                            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">
+                              <div className="space-y-1">
+                                <h4 className="font-medium text-gray-900">Email Notifications</h4>
+                                <p className="text-sm text-gray-600">
+                                  Receive updates about your library account
+                                </p>
+                              </div>
+                              <Badge 
+                                variant={user.preferences?.notifications ? "default" : "secondary"}
+                                className={user.preferences?.notifications ? 
+                                  "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"}
+                              >
                                 {user.preferences?.notifications ? 'Enabled' : 'Disabled'}
-                              </p>
-                            </div>
-                            <Badge variant={user.preferences?.notifications ? "default" : "secondary"}>
-                              {user.preferences?.notifications ? 'On' : 'Off'}
-                            </Badge>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                          <Activity className="w-5 h-5" />
-                          Account Activity
-                        </CardTitle>
-                        <CardDescription>
-                          Your recent library activity and statistics
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="space-y-4">
-                          <div className="grid grid-cols-2 gap-4">
-                            <div className="text-center p-4 bg-blue-50 rounded-lg">
-                              <div className="text-2xl font-bold text-blue-600">0</div>
-                              <div className="text-sm text-blue-800">Books Borrowed</div>
-                            </div>
-                            <div className="text-center p-4 bg-green-50 rounded-lg">
-                              <div className="text-2xl font-bold text-green-600">0</div>
-                              <div className="text-sm text-green-800">Searches Made</div>
+                              </Badge>
                             </div>
                           </div>
-                        </div>
-                      </CardContent>
-                    </Card>
+                        </CardContent>
+                      </Card>
 
-                    <Card className="border-red-200">
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2 text-red-700">
-                          <Trash2 className="w-5 h-5" />
-                          Delete Account
-                        </CardTitle>
-                        <CardDescription className="text-red-600">
-                          Permanently delete your account and all associated data
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        <AccountDeletionForm onSuccess={handleAccountDeleted} />
-                      </CardContent>
-                    </Card>
+                      <Card className="border-gray-200 shadow-sm">
+                        <CardHeader className="pb-4">
+                          <CardTitle className="flex items-center gap-2 text-lg">
+                            <Activity className="w-5 h-5 text-gray-600" />
+                            Account Activity
+                          </CardTitle>
+                          <CardDescription>
+                            Your recent library activity and usage statistics
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent className="pt-0">
+                          {loading ? (
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                              {[1, 2, 3].map((i) => (
+                                <div key={i} className="text-center p-4 bg-gray-100 rounded-lg border animate-pulse">
+                                  <div className="w-6 h-6 bg-gray-300 rounded mx-auto mb-2"></div>
+                                  <div className="h-6 bg-gray-300 rounded mb-2"></div>
+                                  <div className="h-4 bg-gray-300 rounded"></div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : userStats ? (
+                            <div className={`grid grid-cols-1 ${userStats.third ? 'md:grid-cols-3' : 'md:grid-cols-2'} gap-4`}>
+                              <div className={`text-center p-4 rounded-lg border ${getColorClasses(userStats.first.color)}`}>
+                                <div className="flex justify-center mb-2">
+                                  {userStats.first.icon}
+                                </div>
+                                <div className="text-2xl font-bold">{userStats.first.value}</div>
+                                <div className="text-sm">{userStats.first.label}</div>
+                              </div>
+                              
+                              <div className={`text-center p-4 rounded-lg border ${getColorClasses(userStats.second.color)}`}>
+                                <div className="flex justify-center mb-2">
+                                  {userStats.second.icon}
+                                </div>
+                                <div className="text-2xl font-bold">{userStats.second.value}</div>
+                                <div className="text-sm">{userStats.second.label}</div>
+                              </div>
+                              
+                              {userStats.third && (
+                                <div className={`text-center p-4 rounded-lg border ${getColorClasses(userStats.third.color)}`}>
+                                  <div className="flex justify-center mb-2">
+                                    {userStats.third.icon}
+                                  </div>
+                                  <div className="text-2xl font-bold">{userStats.third.value}</div>
+                                  <div className="text-sm">{userStats.third.label}</div>
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="text-center py-8 text-gray-500">
+                              <Activity className="w-12 h-12 mx-auto mb-4 text-gray-400" />
+                              <p>No activity data available</p>
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+
+                      <Card className="border-red-200 shadow-sm bg-red-50">
+                        <CardHeader className="pb-4">
+                          <CardTitle className="flex items-center gap-2 text-lg text-red-700">
+                            <Trash2 className="w-5 h-5" />
+                            Danger Zone
+                          </CardTitle>
+                          <CardDescription className="text-red-600">
+                            Permanently delete your account and all associated data. This action cannot be undone.
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent className="pt-0">
+                          <AccountDeletionForm onSuccess={handleAccountDeleted} />
+                        </CardContent>
+                      </Card>
+                    </div>
                   </div>
-                </div>
-              </TabsContent>
-            </Tabs>
-            </div>
-          </FadeIn>
+                </TabsContent>
+                
+              </Tabs>
+            </FadeIn>
+          </div>
         </div>
       </div>
     </div>
