@@ -21,8 +21,8 @@ export default function RegisterModal({ isOpen, onClose, onRegistrationSuccess }
   if (!isOpen) return null;
 
   const handleGoogleLogin = () => {
-    // Google login logic would go here
-    console.log("Google login clicked");
+    // Google OAuth integration would be implemented here
+    toast.info("Google OAuth integration coming soon. Please use email/password registration.");
   };
 
   const handleCreateAccount = async () => {

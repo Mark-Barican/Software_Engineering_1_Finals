@@ -50,11 +50,8 @@ export default function ForgotPasswordModal({ isOpen, onClose, onBackToLogin }: 
       }
 
       setSuccess(true);
-      // For development - show the reset token in console
-      if (data.resetToken) {
-        console.log("Reset token:", data.resetToken);
-        toast.success("Reset token logged to console (development only)");
-      }
+      // In production, an email would be sent with the reset link
+      toast.success("If your email exists in our system, you'll receive a password reset link shortly.");
     } catch (error) {
       setError(error instanceof Error ? error.message : "Failed to send reset email");
     } finally {

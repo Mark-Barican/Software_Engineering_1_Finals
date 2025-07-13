@@ -125,8 +125,17 @@ export default function SearchResults() {
   };
 
   const handleLoginClick = () => setIsLoginModalOpen(true);
+  const handleRegisterClick = () => setIsRegisterModalOpen(true);
   const handleCloseLoginModal = () => setIsLoginModalOpen(false);
   const handleCloseRegisterModal = () => setIsRegisterModalOpen(false);
+
+  const handleDownload = (bookTitle: string) => {
+    alert(`Download functionality for "${bookTitle}" would be implemented here`);
+  };
+
+  const handleReadOnline = (bookTitle: string) => {
+    alert(`Read online functionality for "${bookTitle}" would be implemented here`);
+  };
 
   return (
     <div className="min-h-screen bg-white">
@@ -159,10 +168,16 @@ export default function SearchResults() {
           </Link>
 
           <div className="flex items-center gap-3">
-            <button className="px-4 py-2 border border-brand-border-light rounded-full font-abhaya text-base hover:bg-gray-50 transition-colors">
+            <button 
+              onClick={handleRegisterClick}
+              className="px-4 py-2 border border-brand-border-light rounded-full font-abhaya text-base hover:bg-gray-50 transition-colors"
+            >
               Register
             </button>
-            <button className="flex items-center gap-2 px-4 py-2 bg-brand-orange text-white rounded-full font-abhaya text-base hover:bg-brand-orange-light transition-colors">
+            <button 
+              onClick={handleLoginClick}
+              className="flex items-center gap-2 px-4 py-2 bg-brand-orange text-white rounded-full font-abhaya text-base hover:bg-brand-orange-light transition-colors"
+            >
               <User size={24} />
               Log in
             </button>
@@ -416,12 +431,18 @@ export default function SearchResults() {
                 {/* Action Buttons */}
                 <div className="w-56 flex-shrink-0 space-y-3">
                   {book.hasDownload ? (
-                    <Button className="w-full h-12 bg-brand-orange hover:bg-brand-orange-light text-white font-abhaya text-2xl rounded-sm">
+                    <Button 
+                      onClick={() => handleDownload(book.title)}
+                      className="w-full h-12 bg-brand-orange hover:bg-brand-orange-light text-white font-abhaya text-2xl rounded-sm"
+                    >
                       <Download size={24} className="mr-2" />
                       Download
                     </Button>
                   ) : (
-                    <Button className="w-full h-12 bg-brand-orange hover:bg-brand-orange-light text-white font-abhaya text-2xl rounded-sm">
+                    <Button 
+                      onClick={() => handleReadOnline(book.title)}
+                      className="w-full h-12 bg-brand-orange hover:bg-brand-orange-light text-white font-abhaya text-2xl rounded-sm"
+                    >
                       <BookOpen size={24} className="mr-2" />
                       Read Online
                     </Button>

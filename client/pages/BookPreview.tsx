@@ -12,8 +12,14 @@ export default function BookPreview() {
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
 
   const handleLoginClick = () => setIsLoginModalOpen(true);
+  const handleRegisterClick = () => setIsRegisterModalOpen(true);
   const handleCloseLoginModal = () => setIsLoginModalOpen(false);
   const handleCloseRegisterModal = () => setIsRegisterModalOpen(false);
+
+  const handleDownload = () => {
+    // Download functionality would be implemented here
+    alert("Download functionality would be implemented here");
+  };
 
   return (
     <div className="min-h-screen bg-white">
@@ -46,10 +52,16 @@ export default function BookPreview() {
           </Link>
 
           <div className="flex items-center gap-3">
-            <button className="px-4 py-2 border border-brand-border-light rounded-full font-abhaya text-base hover:bg-gray-50 transition-colors">
+            <button 
+              onClick={handleRegisterClick}
+              className="px-4 py-2 border border-brand-border-light rounded-full font-abhaya text-base hover:bg-gray-50 transition-colors"
+            >
               Register
             </button>
-            <button className="flex items-center gap-2 px-4 py-2 bg-brand-orange text-white rounded-full font-abhaya text-base hover:bg-brand-orange-light transition-colors">
+            <button 
+              onClick={handleLoginClick}
+              className="flex items-center gap-2 px-4 py-2 bg-brand-orange text-white rounded-full font-abhaya text-base hover:bg-brand-orange-light transition-colors"
+            >
               <User size={24} />
               Log in
             </button>
@@ -94,7 +106,10 @@ export default function BookPreview() {
 
             {/* Action Buttons */}
             <div className="w-full max-w-sm space-y-4">
-              <Button className="w-full h-20 bg-brand-orange hover:bg-brand-orange-light text-white rounded-sm">
+              <Button 
+                onClick={handleDownload}
+                className="w-full h-20 bg-brand-orange hover:bg-brand-orange-light text-white rounded-sm"
+              >
                 <Download size={32} className="mr-4" />
                 <span className="text-4xl font-abhaya">Download</span>
               </Button>

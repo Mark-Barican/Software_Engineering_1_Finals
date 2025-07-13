@@ -3,6 +3,7 @@ import { X } from "lucide-react";
 import { useAuth } from "../hooks/use-auth";
 import { useNavigate } from "react-router-dom";
 import ForgotPasswordModal from "./ForgotPasswordModal";
+import { toast } from "./ui/use-toast";
 
 interface LoginModalProps {
   isOpen: boolean;
@@ -24,8 +25,11 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
   if (!isOpen) return null;
 
   const handleGoogleLogin = () => {
-    // Google login logic would go here
-    console.log("Google login clicked");
+    // Google OAuth integration would be implemented here
+    toast({
+      title: "Google Login",
+      description: "Google OAuth integration coming soon. Please use email/password login.",
+    });
   };
 
   const handleLogin = async () => {
