@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useSearchParams, Link } from "react-router-dom";
+import { useAuth } from "../hooks/use-auth";
 import {
   Search,
   ChevronDown,
@@ -16,6 +17,8 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
+import LoginModal from "../components/LoginModal";
+import RegisterModal from "../components/RegisterModal";
 
 // Mock search results data matching the Figma design
 const searchResults = [
@@ -95,6 +98,7 @@ const searchResults = [
 
 export default function SearchResults() {
   const [searchParams] = useSearchParams();
+  const { user, loading } = useAuth();
   const query = searchParams.get("q") || "";
   const [refineQuery, setRefineQuery] = useState("");
   const [expandedSections, setExpandedSections] = useState({
@@ -105,6 +109,8 @@ export default function SearchResults() {
     accessType: false,
   });
   const [accessType, setAccessType] = useState("everything");
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
   const [contentTypes, setContentTypes] = useState({
     journals: false,
     bookChapters: false,
@@ -118,21 +124,30 @@ export default function SearchResults() {
     }));
   };
 
+  const handleLoginClick = () => setIsLoginModalOpen(true);
+  const handleCloseLoginModal = () => setIsLoginModalOpen(false);
+  const handleCloseRegisterModal = () => setIsRegisterModalOpen(false);
+
   return (
     <div className="min-h-screen bg-white">
       {/* Header */}
       <div className="border-b border-brand-border-light bg-white">
-        <div className="flex items-center justify-center py-3 border-b border-brand-border-light">
-          <div className="flex items-center gap-2">
-            <span className="text-2xl font-alkalami">
-              Have library access?{" "}
-              <button className="font-abhaya underline ml-3 hover:text-brand-orange transition-colors">
-                Log in
-              </button>
-            </span>
+        {!user && !loading && (
+          <div className="flex items-center justify-center py-3 border-b border-brand-border-light">
+            <div className="flex items-center gap-2">
+              <span className="text-2xl font-alkalami">
+                Have library access?{" "}
+                <button 
+                  onClick={handleLoginClick}
+                  className="font-abhaya underline ml-3 hover:text-brand-orange transition-colors"
+                >
+                  Log in
+                </button>
+              </span>
+            </div>
+            <HelpCircle size={24} className="absolute right-12 top-3" />
           </div>
-          <HelpCircle size={24} className="absolute right-12 top-3" />
-        </div>
+        )}
 
         <div className="flex items-center justify-between px-6 py-4">
           <Link to="/" className="flex items-center">
@@ -433,6 +448,16 @@ export default function SearchResults() {
           </div>
         </div>
       </div>
+
+      {/* Modals */}
+      <LoginModal
+        isOpen={isLoginModalOpen}
+        onClose={handleCloseLoginModal}
+      />
+      <RegisterModal
+        isOpen={isRegisterModalOpen}
+        onClose={handleCloseRegisterModal}
+      />
     </div>
   );
 }

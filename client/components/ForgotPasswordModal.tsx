@@ -70,7 +70,7 @@ export default function ForgotPasswordModal({ isOpen, onClose, onBackToLogin }: 
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black bg-opacity-50 pt-16 overflow-y-auto">
       <div className="bg-white rounded-lg w-full max-w-md mx-4 relative">
         {/* Close button */}
         <button
@@ -120,7 +120,7 @@ export default function ForgotPasswordModal({ isOpen, onClose, onBackToLogin }: 
                 <Button
                   type="submit"
                   disabled={loading}
-                  className="w-full py-4 bg-brand-orange-light text-white font-bold text-lg rounded-full hover:bg-brand-orange transition-colors disabled:opacity-60"
+                  className="w-full py-4 bg-brand-orange-light text-white font-bold text-lg rounded-full hover:bg-brand-orange transition-all duration-200 disabled:opacity-60 hover:scale-105 disabled:hover:scale-100"
                 >
                   {loading ? (
                     <>

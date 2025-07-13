@@ -3,9 +3,11 @@ import { ChevronDown, User, HelpCircle } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import LoginModal from "../components/LoginModal";
 import RegisterModal from "../components/RegisterModal";
+import { useAuth } from "../hooks/use-auth";
 
 export default function AdvancedSearch() {
   const navigate = useNavigate();
+  const { user, loading } = useAuth();
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
   const [formData, setFormData] = useState({
@@ -84,20 +86,22 @@ export default function AdvancedSearch() {
     <div className="min-h-screen bg-white">
       {/* Header - Same as main page */}
       <div className="border-b border-brand-border-light bg-white">
-        <div className="flex items-center justify-center py-3 border-b border-brand-border-light">
-          <div className="flex items-center gap-2">
-            <span className="text-2xl font-alkalami">
-              Have library access?{" "}
-              <button
-                onClick={handleLoginClick}
-                className="font-abhaya underline ml-3 hover:text-brand-orange transition-colors"
-              >
-                Log in
-              </button>
-            </span>
+        {!user && !loading && (
+          <div className="flex items-center justify-center py-3 border-b border-brand-border-light">
+            <div className="flex items-center gap-2">
+              <span className="text-2xl font-alkalami">
+                Have library access?{" "}
+                <button
+                  onClick={handleLoginClick}
+                  className="font-abhaya underline ml-3 hover:text-brand-orange transition-colors"
+                >
+                  Log in
+                </button>
+              </span>
+            </div>
+            <HelpCircle size={24} className="absolute right-12 top-3" />
           </div>
-          <HelpCircle size={24} className="absolute right-12 top-3" />
-        </div>
+        )}
 
         <div className="flex items-center justify-between px-6 py-4">
           <div className="flex items-center">

@@ -16,38 +16,46 @@ import Settings from "./pages/Settings";
 import { AuthProvider, useAuth } from "./hooks/use-auth";
 import MyAccount from "./pages/MyAccount";
 import ResetPassword from "./pages/ResetPassword";
+import { PageLoader } from "./components/LoadingOverlay";
+import PageTransition from "./components/PageTransition";
+import { ErrorBoundary, NetworkStatusIndicator } from "./components/ErrorHandler";
 
 const queryClient = new QueryClient();
 
 function PrivateRoute({ children }: { children: JSX.Element }) {
-  const { user, loading } = useAuth();
-  if (loading) return null;
+  const { user, initialLoading } = useAuth();
+  if (initialLoading) return <PageLoader message="Loading your account..." />;
   return user ? children : <Navigate to="/" replace />;
 }
 
 const App = () => (
-  <AuthProvider>
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<Index />} />
-            <Route path="/advanced-search" element={<AdvancedSearch />} />
-            <Route path="/search" element={<SearchResults />} />
-            <Route path="/search-history" element={<SearchHistory />} />
-            <Route path="/book/the-great-gatsby" element={<BookPreview />} />
-            <Route path="/settings" element={<Settings />} />
-            <Route path="/my-account" element={<PrivateRoute><MyAccount /></PrivateRoute>} />
-            <Route path="/reset-password" element={<ResetPassword />} />
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
-      </TooltipProvider>
-    </QueryClientProvider>
-  </AuthProvider>
+  <ErrorBoundary>
+    <AuthProvider>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <NetworkStatusIndicator />
+          <BrowserRouter>
+            <PageTransition>
+              <Routes>
+                <Route path="/" element={<Index />} />
+                <Route path="/advanced-search" element={<AdvancedSearch />} />
+                <Route path="/search" element={<SearchResults />} />
+                <Route path="/search-history" element={<SearchHistory />} />
+                <Route path="/book/the-great-gatsby" element={<BookPreview />} />
+                <Route path="/settings" element={<Settings />} />
+                <Route path="/my-account" element={<PrivateRoute><MyAccount /></PrivateRoute>} />
+                <Route path="/reset-password" element={<ResetPassword />} />
+                {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </PageTransition>
+          </BrowserRouter>
+        </TooltipProvider>
+      </QueryClientProvider>
+    </AuthProvider>
+  </ErrorBoundary>
 );
 
 createRoot(document.getElementById("root")!).render(<App />);

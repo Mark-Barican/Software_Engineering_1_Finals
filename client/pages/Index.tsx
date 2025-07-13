@@ -118,19 +118,21 @@ export default function Index() {
     <div className="min-h-screen bg-white">
       {/* Top Banner */}
       <div className="border-b border-brand-border-light bg-white">
-        <div className="flex items-center justify-center py-3 border-b border-brand-border-light">
-          <div className="flex items-center gap-2">
-            <span className="text-2xl font-alkalami">
-              Have library access?{" "}
-              <button
-                onClick={handleLoginClick}
-                className="font-abhaya underline ml-3 hover:text-brand-orange transition-colors"
-              >
-                Log in
-              </button>
-            </span>
+        {!user && !loading && (
+          <div className="flex items-center justify-center py-3 border-b border-brand-border-light">
+            <div className="flex items-center gap-2">
+              <span className="text-2xl font-alkalami">
+                Have library access?{" "}
+                <button
+                  onClick={handleLoginClick}
+                  className="font-abhaya underline ml-3 hover:text-brand-orange transition-colors"
+                >
+                  Log in
+                </button>
+              </span>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4">
