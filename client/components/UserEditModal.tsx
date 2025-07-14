@@ -137,7 +137,8 @@ export default function UserEditModal({ isOpen, onClose, user, onSave }: UserEdi
               <div className="flex items-center gap-4">
                 <div className="flex-1">
                   <p className="text-sm text-gray-600">User ID</p>
-                  <p className="font-medium">{user.userId || 'Not assigned'}</p>
+                  <p className="font-medium font-mono bg-gray-100 px-2 py-1 rounded text-sm">{user.userId || 'Not assigned'}</p>
+                  <p className="text-xs text-gray-500 mt-1">User IDs cannot be modified once assigned</p>
                 </div>
                 <div className="flex gap-2">
                   <Badge className={getRoleColor(user.role)}>
@@ -224,11 +225,13 @@ export default function UserEditModal({ isOpen, onClose, user, onSave }: UserEdi
             <div className="flex items-start gap-3">
               <AlertTriangle className="w-5 h-5 text-yellow-600 mt-0.5" />
               <div>
-                <h4 className="font-medium text-yellow-900">Important</h4>
-                <p className="text-sm text-yellow-700 mt-1">
-                  Changing a user's role or status may affect their access to the system. 
-                  Please ensure these changes are necessary and authorized.
-                </p>
+                <h4 className="font-medium text-yellow-900">Important Limitations</h4>
+                <ul className="text-sm text-yellow-700 mt-1 space-y-1">
+                  <li>• <strong>User IDs cannot be edited</strong> - they are used throughout the system for tracking loans, fines, and reservations</li>
+                  <li>• Changing a user's role may affect their access permissions</li>
+                  <li>• Account status changes will immediately affect the user's ability to borrow books</li>
+                  <li>• For major corrections, consider creating a new account and migrating essential data</li>
+                </ul>
               </div>
             </div>
           </div>

@@ -110,35 +110,99 @@ export default function UserViewModal({ isOpen, onClose, user }: UserViewModalPr
             </CardContent>
           </Card>
 
-          {/* Account Statistics */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <BookOpen className="w-4 h-4" />
-                Account Statistics
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="text-center p-3 bg-blue-50 rounded-lg">
-                  <div className="text-2xl font-bold text-blue-600">{user.activeLoans || 0}</div>
-                  <div className="text-xs text-blue-600">Active Loans</div>
+          {/* Role-specific Activity */}
+          {user.role === 'user' && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <BookOpen className="w-4 h-4" />
+                  Student Activity
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="text-center p-3 bg-blue-50 rounded-lg">
+                    <div className="text-2xl font-bold text-blue-600">{user.currentBorrowedBooks || 0}</div>
+                    <div className="text-xs text-blue-600">Active Loans</div>
+                  </div>
+                  <div className="text-center p-3 bg-green-50 rounded-lg">
+                    <div className="text-2xl font-bold text-green-600">{user.totalBooksBorrowed || 0}</div>
+                    <div className="text-xs text-green-600">Total Borrowed</div>
+                  </div>
+                  <div className="text-center p-3 bg-purple-50 rounded-lg">
+                    <div className="text-2xl font-bold text-purple-600">{user.numberOfReservations || 0}</div>
+                    <div className="text-xs text-purple-600">Reservations</div>
+                  </div>
+                  <div className="text-center p-3 bg-red-50 rounded-lg">
+                    <div className="text-2xl font-bold text-red-600">${(user.outstandingFines || 0).toFixed(2)}</div>
+                    <div className="text-xs text-red-600">Outstanding Fines</div>
+                  </div>
                 </div>
-                <div className="text-center p-3 bg-green-50 rounded-lg">
-                  <div className="text-2xl font-bold text-green-600">{user.totalBorrowed || 0}</div>
-                  <div className="text-xs text-green-600">Total Borrowed</div>
+              </CardContent>
+            </Card>
+          )}
+
+          {user.role === 'librarian' && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Shield className="w-4 h-4" />
+                  Librarian Access
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between p-3 bg-purple-50 rounded-lg">
+                    <span className="text-sm font-medium text-purple-900">Library Operations</span>
+                    <Badge className="bg-purple-100 text-purple-800">Full Access</Badge>
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
+                    <span className="text-sm font-medium text-blue-900">Book Management</span>
+                    <Badge className="bg-blue-100 text-blue-800">Can Add/Edit</Badge>
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
+                    <span className="text-sm font-medium text-green-900">Loan Management</span>
+                    <Badge className="bg-green-100 text-green-800">Issue/Return</Badge>
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-orange-50 rounded-lg">
+                    <span className="text-sm font-medium text-orange-900">User Management</span>
+                    <Badge className="bg-orange-100 text-orange-800">View Only</Badge>
+                  </div>
                 </div>
-                <div className="text-center p-3 bg-yellow-50 rounded-lg">
-                  <div className="text-2xl font-bold text-yellow-600">{user.overdueLoans || 0}</div>
-                  <div className="text-xs text-yellow-600">Overdue</div>
+              </CardContent>
+            </Card>
+          )}
+
+          {user.role === 'admin' && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Shield className="w-4 h-4" />
+                  Administrator Access
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between p-3 bg-purple-50 rounded-lg">
+                    <span className="text-sm font-medium text-purple-900">System Administration</span>
+                    <Badge className="bg-purple-100 text-purple-800">Full Access</Badge>
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-red-50 rounded-lg">
+                    <span className="text-sm font-medium text-red-900">User Management</span>
+                    <Badge className="bg-red-100 text-red-800">Create/Edit/Delete</Badge>
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
+                    <span className="text-sm font-medium text-blue-900">Book Management</span>
+                    <Badge className="bg-blue-100 text-blue-800">Full Control</Badge>
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
+                    <span className="text-sm font-medium text-green-900">System Settings</span>
+                    <Badge className="bg-green-100 text-green-800">Configure</Badge>
+                  </div>
                 </div>
-                <div className="text-center p-3 bg-red-50 rounded-lg">
-                  <div className="text-2xl font-bold text-red-600">${user.totalFines || 0}</div>
-                  <div className="text-xs text-red-600">Outstanding Fines</div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Account Activity */}
           <Card>
@@ -174,9 +238,6 @@ export default function UserViewModal({ isOpen, onClose, user }: UserViewModalPr
           <div className="flex gap-2 justify-end">
             <Button variant="outline" onClick={onClose}>
               Close
-            </Button>
-            <Button>
-              Edit User
             </Button>
           </div>
         </div>
