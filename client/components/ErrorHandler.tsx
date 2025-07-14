@@ -3,7 +3,7 @@ import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { AlertCircle, RefreshCw, Wifi, WifiOff, AlertTriangle, CheckCircle, XCircle } from "lucide-react";
-import { toast } from "./ui/use-toast";
+import { toast } from "sonner";
 
 // Error types
 export interface AppError {
@@ -324,23 +324,13 @@ function parseError(error: any): AppError {
 
 // Toast notification helpers
 export const showErrorToast = (error: AppError) => {
-  toast({
-    title: "Error",
-    description: error.message,
-    variant: "destructive",
-  });
+  toast.error(error.message);
 };
 
 export const showSuccessToast = (message: string) => {
-  toast({
-    title: "Success",
-    description: message,
-  });
+  toast.success(message);
 };
 
 export const showLoadingToast = (message: string) => {
-  toast({
-    title: "Loading",
-    description: message,
-  });
+  toast.info(message);
 }; 

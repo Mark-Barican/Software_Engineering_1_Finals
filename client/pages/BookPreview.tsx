@@ -17,8 +17,20 @@ export default function BookPreview() {
   const handleCloseRegisterModal = () => setIsRegisterModalOpen(false);
 
   const handleSave = () => {
-    // Save functionality would be implemented here
-    console.log("Save functionality would be implemented here");
+    // For demo: Save book to localStorage 'favorites' for the user
+    const book = {
+      title: "The Great Gatsby",
+      author: "Scott F. Fitzgerald",
+      isbn: "9781476740553"
+    };
+    const favorites = JSON.parse(localStorage.getItem('favorites') || '[]');
+    if (!favorites.find((b: any) => b.isbn === book.isbn)) {
+      favorites.push(book);
+      localStorage.setItem('favorites', JSON.stringify(favorites));
+      alert('Book saved to favorites!');
+    } else {
+      alert('Book is already in your favorites.');
+    }
   };
 
   return (

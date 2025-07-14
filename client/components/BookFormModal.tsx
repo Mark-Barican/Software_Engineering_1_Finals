@@ -99,6 +99,7 @@ export default function BookFormModal({ isOpen, onClose, onSave, book, mode }: B
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [newCategory, setNewCategory] = useState('');
+  const [coverImageError, setCoverImageError] = useState(false);
 
   useEffect(() => {
     if (book && mode === 'edit') {
@@ -119,6 +120,7 @@ export default function BookFormModal({ isOpen, onClose, onSave, book, mode }: B
         hasReadOnline: book.hasReadOnline || false,
         categories: book.categories || []
       });
+      setCoverImageError(false);
     } else {
       // Reset form for new book
       setFormData({
@@ -138,6 +140,7 @@ export default function BookFormModal({ isOpen, onClose, onSave, book, mode }: B
         hasReadOnline: false,
         categories: []
       });
+      setCoverImageError(false);
     }
     setErrors({});
   }, [book, mode, isOpen]);
@@ -168,9 +171,12 @@ export default function BookFormModal({ isOpen, onClose, onSave, book, mode }: B
     setIsSubmitting(true);
     try {
       await onSave(formData);
-      onClose();
+      // Only close modal if save was successful
+      // The parent component will handle closing via onSave success
     } catch (error) {
       console.error('Error saving book:', error);
+      // Show error message to user - the parent should handle specific error display
+      // We don't close the modal on error so user can retry
     } finally {
       setIsSubmitting(false);
     }
@@ -462,26 +468,33 @@ export default function BookFormModal({ isOpen, onClose, onSave, book, mode }: B
                   id="coverImage"
                   type="url"
                   value={formData.coverImage}
-                  onChange={(e) => handleInputChange('coverImage', e.target.value)}
+                  onChange={(e) => {
+                    handleInputChange('coverImage', e.target.value);
+                    setCoverImageError(false);
+                  }}
                   placeholder="https://example.com/book-cover.jpg"
                 />
               </div>
-              
-              {formData.coverImage && (
-                <div className="flex items-center gap-4">
-                  <img 
-                    src={formData.coverImage} 
-                    alt="Book cover preview" 
+              <div className="flex items-center gap-4">
+                {formData.coverImage && !coverImageError ? (
+                  <img
+                    src={formData.coverImage}
+                    alt="Book cover preview"
                     className="w-20 h-28 object-cover border rounded"
-                    onError={(e) => {
-                      e.currentTarget.style.display = 'none';
-                    }}
+                    onError={() => setCoverImageError(true)}
                   />
-                  <div className="text-sm text-gray-600">
-                    Cover image preview
+                ) : (
+                  <div className="w-20 h-28 flex items-center justify-center border rounded bg-gradient-to-br from-gray-100 to-gray-200">
+                    <BookOpen className="w-8 h-8 text-gray-400" />
                   </div>
+                )}
+                <div className="text-sm text-gray-600">
+                  Cover image preview
+                  {coverImageError && (
+                    <div className="text-xs text-red-500 mt-1">Image could not be loaded. Please check the URL.</div>
+                  )}
                 </div>
-              )}
+              </div>
             </CardContent>
           </Card>
 

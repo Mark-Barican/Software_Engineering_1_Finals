@@ -14,7 +14,7 @@ import {
   X,
   AlertTriangle
 } from "lucide-react";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 
 interface UserEditModalProps {
   isOpen: boolean;
@@ -47,11 +47,7 @@ export default function UserEditModal({ isOpen, onClose, user, onSave }: UserEdi
 
   const handleSave = async () => {
     if (!formData.name.trim() || !formData.email.trim()) {
-      toast({
-        title: "Validation Error",
-        description: "Name and email are required",
-        variant: "destructive"
-      });
+      toast.error("Name and email are required");
       return;
     }
 
@@ -70,25 +66,14 @@ export default function UserEditModal({ isOpen, onClose, user, onSave }: UserEdi
       if (response.ok) {
         const updatedUser = await response.json();
         onSave(updatedUser.user);
-        toast({
-          title: "Success",
-          description: "User updated successfully",
-        });
+        toast.success("User updated successfully");
         onClose();
       } else {
         const error = await response.json();
-        toast({
-          title: "Error",
-          description: error.message || "Failed to update user",
-          variant: "destructive"
-        });
+        toast.error(error.message || "Failed to update user");
       }
     } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to update user",
-        variant: "destructive"
-      });
+      toast.error("Failed to update user");
     } finally {
       setLoading(false);
     }

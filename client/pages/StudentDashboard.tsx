@@ -2,6 +2,8 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/use-auth";
 import UserAvatar from "../components/UserAvatar";
+import BookCard from "../components/BookCard";
+import BookViewModal from "../components/BookViewModal";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,9 +28,18 @@ import {
   Filter,
   Heart,
   Bookmark,
-  DollarSign,
-  History
+  History,
+  Grid,
+  List,
+  SlidersHorizontal,
+  Star,
+  TrendingUp,
+  Save,
+  X,
+  Edit
 } from "lucide-react";
+import { PesoSign } from "@/components/ui/button";
+import { toast } from "@/hooks/use-toast";
 
 interface Book {
   _id: string;
@@ -44,6 +55,11 @@ interface Book {
   publishedYear: number;
   hasDownload: boolean;
   hasReadOnline: boolean;
+  coverImage?: string;
+  publisher?: string;
+  location?: string;
+  language?: string;
+  status?: string;
 }
 
 interface Loan {
@@ -120,6 +136,16 @@ export default function StudentDashboard() {
   const [feedback, setFeedback] = useState("");
   const [bookSuggestion, setBookSuggestion] = useState({ title: "", author: "", reason: "" });
   const [filter, setFilter] = useState("all");
+  const [imageKey, setImageKey] = useState(Date.now());
+  const [isBookViewModalOpen, setIsBookViewModalOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [sortBy, setSortBy] = useState('title');
+  const [filterBy, setFilterBy] = useState('all');
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [editableUser, setEditableUser] = useState({
+    name: '',
+    email: ''
+  });
 
   useEffect(() => {
     // Check if user is a student (user role)
@@ -160,7 +186,7 @@ export default function StudentDashboard() {
   const loadBooks = async () => {
     try {
       const token = localStorage.getItem('token') || sessionStorage.getItem('token');
-      const response = await fetch(`/api/student/books?search=${searchQuery}&filter=${filter}`, {
+      const response = await fetch(`/api/student/books?search=${searchQuery}&filter=${filterBy}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
@@ -267,17 +293,28 @@ export default function StudentDashboard() {
       
       if (response.ok) {
         const result = await response.json();
-        alert(`Book borrowed successfully! Due date: ${new Date(result.dueDate).toLocaleDateString()}`);
-        loadLoans();
-        loadBooks();
-        loadStudentStats();
+        // Refresh data and images after successful borrow
+        setImageKey(Date.now());
+        await Promise.all([loadLoans(), loadBooks(), loadStudentStats()]);
+        toast({
+          title: "Success",
+          description: `Book borrowed successfully! Due date: ${new Date(result.dueDate).toLocaleDateString()}`,
+        });
       } else {
         const error = await response.json();
-        alert(`Error: ${error.message}`);
+        toast({
+          title: "Error",
+          description: error.message || 'Failed to borrow book',
+          variant: "destructive",
+        });
       }
     } catch (error) {
       console.error('Error borrowing book:', error);
-      alert('Error borrowing book');
+      toast({
+        title: "Error",
+        description: "Error borrowing book",
+        variant: "destructive",
+      });
     }
   };
 
@@ -294,16 +331,27 @@ export default function StudentDashboard() {
       });
       
       if (response.ok) {
-        alert('Book reserved successfully! You will be notified when it becomes available.');
-        loadReservations();
-        loadStudentStats();
+        // Refresh data after successful reservation
+        await Promise.all([loadReservations(), loadStudentStats()]);
+        toast({
+          title: "Success",
+          description: "Book reserved successfully! You will be notified when it becomes available.",
+        });
       } else {
         const error = await response.json();
-        alert(`Error: ${error.message}`);
+        toast({
+          title: "Error",
+          description: error.message || 'Failed to reserve book',
+          variant: "destructive",
+        });
       }
     } catch (error) {
       console.error('Error reserving book:', error);
-      alert('Error reserving book');
+      toast({
+        title: "Error",
+        description: "Error reserving book",
+        variant: "destructive",
+      });
     }
   };
 
@@ -318,7 +366,7 @@ export default function StudentDashboard() {
       if (response.ok) {
         const result = await response.json();
         if (result.fine) {
-          alert(`Book returned successfully! Fine of $${result.fine.toFixed(2)} has been applied for overdue.`);
+          alert(`Book returned successfully! Fine of ₱${result.fine.toFixed(2)} has been applied for overdue.`);
         } else {
           alert('Book returned successfully!');
         }
@@ -440,6 +488,11 @@ export default function StudentDashboard() {
     }
   };
 
+  const handleBookView = (book: Book) => {
+    setSelectedBook(book);
+    setIsBookViewModalOpen(true);
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'active':
@@ -456,6 +509,63 @@ export default function StudentDashboard() {
       default:
         return 'bg-gray-100 text-gray-800';
     }
+  };
+
+  const handleEditProfile = () => {
+    setIsEditingProfile(true);
+    setEditableUser({
+      name: user.name,
+      email: user.email
+    });
+  };
+
+  const handleSaveProfile = async () => {
+    try {
+      const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+      const response = await fetch('/api/user/profile', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          name: editableUser.name,
+          email: editableUser.email
+        })
+      });
+
+      if (response.ok) {
+        toast({
+          title: "Success",
+          description: "Profile updated successfully!",
+        });
+        setIsEditingProfile(false);
+        // Refresh user data
+        await loadStudentData();
+      } else {
+        const error = await response.json();
+        toast({
+          title: "Error",
+          description: error.message || 'Failed to update profile',
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      toast({
+        title: "Error",
+        description: "Error updating profile",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditingProfile(false);
+    setEditableUser({
+      name: user.name,
+      email: user.email
+    });
   };
 
   if (!user || user.role !== 'user') {
@@ -536,10 +646,10 @@ export default function StudentDashboard() {
           <Card>
             <CardContent className="p-6">
               <div className="flex items-center">
-                <DollarSign className="w-8 h-8 text-red-600" />
+                <PesoSign className="w-8 h-8 text-red-600" />
                 <div className="ml-4">
                   <p className="text-sm font-medium text-gray-600">Outstanding Fines</p>
-                  <p className="text-2xl font-bold text-gray-900">${studentStats.outstandingFines.toFixed(2)}</p>
+                  <p className="text-2xl font-bold text-gray-900">₱{studentStats.outstandingFines.toFixed(2)}</p>
                 </div>
               </div>
             </CardContent>
@@ -573,7 +683,7 @@ export default function StudentDashboard() {
               Reservations
             </TabsTrigger>
             <TabsTrigger value="fines" className="flex items-center gap-1">
-              <DollarSign className="w-3 h-3" />
+              <PesoSign className="w-3 h-3" />
               Fines
             </TabsTrigger>
             <TabsTrigger value="notifications" className="flex items-center gap-1">
@@ -596,94 +706,181 @@ export default function StudentDashboard() {
 
           {/* Browse Books Tab */}
           <TabsContent value="browse" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Search className="w-5 h-5" />
-                  Browse & Search Books
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex gap-4 mb-6">
-                  <Input
-                    placeholder="Search by title, author, or category..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="flex-1"
-                  />
-                  <select 
-                    value={filter} 
-                    onChange={(e) => setFilter(e.target.value)}
-                    className="px-3 py-2 border rounded-md"
+            {/* Enhanced Header Section */}
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl p-8 border border-blue-100">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="text-3xl font-bold text-gray-900 mb-2">Discover Books</h2>
+                  <p className="text-gray-600 text-lg">Explore our vast collection of books and resources</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Badge variant="secondary" className="text-sm">
+                    {books.length} books available
+                  </Badge>
+                  <div className="flex bg-white rounded-lg p-1 shadow-sm border border-gray-200">
+                    <Button
+                      variant={viewMode === 'grid' ? 'default' : 'ghost'}
+                      size="sm"
+                      onClick={() => setViewMode('grid')}
+                      className={`px-3 h-8 font-medium transition-all duration-200 ${
+                        viewMode === 'grid' 
+                          ? 'bg-blue-600 text-white shadow-sm hover:bg-blue-700' 
+                          : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100'
+                      }`}
+                    >
+                      <Grid className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant={viewMode === 'list' ? 'default' : 'ghost'}
+                      size="sm"
+                      onClick={() => setViewMode('list')}
+                      className={`px-3 h-8 font-medium transition-all duration-200 ${
+                        viewMode === 'list' 
+                          ? 'bg-blue-600 text-white shadow-sm hover:bg-blue-700' 
+                          : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100'
+                      }`}
+                    >
+                      <List className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Enhanced Search and Filters */}
+              <div className="space-y-4">
+                <div className="flex gap-4">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                    <Input
+                      placeholder="Search by title, author, or category..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="pl-10 h-12 text-lg rounded-xl border-2 border-gray-200 focus:border-blue-400 transition-colors"
+                    />
+                  </div>
+                  <Button 
+                    onClick={loadBooks} 
+                    className="h-12 px-6 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-medium transition-all duration-200 shadow-md hover:shadow-lg hover:scale-105 active:scale-95"
                   >
-                    <option value="all">All Books</option>
-                    <option value="available">Available</option>
-                    <option value="new">New Arrivals</option>
-                    <option value="popular">Most Borrowed</option>
-                  </select>
-                  <Button onClick={loadBooks} className="flex items-center gap-2">
-                    <Search className="w-4 h-4" />
+                    <Search className="w-5 h-5 mr-2" />
                     Search
                   </Button>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {books.map((book) => (
-                    <Card key={book._id} className="h-full">
-                      <CardContent className="p-6">
-                        <div className="space-y-4">
-                          <div>
-                            <h3 className="font-semibold text-lg">{book.title}</h3>
-                            <p className="text-gray-600">by {book.author}</p>
-                            <p className="text-sm text-gray-500">{book.genre} • {book.pages} pages</p>
-                          </div>
-                          
-                          <div className="flex items-center gap-2">
-                            <Badge className={book.availableCopies > 0 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
-                              {book.availableCopies > 0 ? 'Available' : 'Not Available'}
-                            </Badge>
-                            <span className="text-sm text-gray-600">
-                              {book.availableCopies}/{book.totalCopies} copies
-                            </span>
-                          </div>
-                          
-                          <p className="text-sm text-gray-700 line-clamp-3">{book.description}</p>
-                          
-                          <div className="flex gap-2">
-                            <Button 
-                              size="sm" 
-                              variant="outline"
-                              onClick={() => setSelectedBook(book)}
-                            >
-                              <Eye className="w-4 h-4 mr-2" />
-                              View Details
-                            </Button>
-                            {book.availableCopies > 0 ? (
-                              <Button 
-                                size="sm"
-                                onClick={() => borrowBook(book._id)}
-                                disabled={studentStats.availableToLoan === 0}
-                                className="bg-blue-600 hover:bg-blue-700 text-white"
-                              >
-                                <BookOpen className="w-4 h-4 mr-2" />
-                                Borrow
-                              </Button>
-                            ) : (
-                              <Button 
-                                size="sm"
-                                onClick={() => reserveBook(book._id)}
-                                disabled={studentStats.availableToLoan === 0}
-                              >
-                                <Bookmark className="w-4 h-4 mr-2" />
-                                Reserve
-                              </Button>
-                            )}
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
+                <div className="flex flex-wrap gap-3">
+                  <div className="flex items-center gap-2">
+                    <Filter className="w-4 h-4 text-gray-500" />
+                    <span className="text-sm font-medium text-gray-700">Filter:</span>
+                  </div>
+                  <select 
+                    value={filterBy} 
+                    onChange={(e) => setFilterBy(e.target.value)}
+                    className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all duration-200 hover:border-gray-300 hover:shadow-sm"
+                  >
+                    <option value="all">All Books</option>
+                    <option value="available">Available Now</option>
+                    <option value="new">New Arrivals</option>
+                    <option value="popular">Most Popular</option>
+                    <option value="fiction">Fiction</option>
+                    <option value="non-fiction">Non-Fiction</option>
+                  </select>
+
+                  <div className="flex items-center gap-2">
+                    <SlidersHorizontal className="w-4 h-4 text-gray-500" />
+                    <span className="text-sm font-medium text-gray-700">Sort by:</span>
+                  </div>
+                  <select 
+                    value={sortBy} 
+                    onChange={(e) => setSortBy(e.target.value)}
+                    className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all duration-200 hover:border-gray-300 hover:shadow-sm"
+                  >
+                    <option value="title">Title A-Z</option>
+                    <option value="author">Author A-Z</option>
+                    <option value="newest">Newest First</option>
+                    <option value="popular">Most Popular</option>
+                    <option value="available">Available First</option>
+                  </select>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={loadBooks}
+                    className="ml-auto h-9 px-4 font-medium bg-white hover:bg-gray-50 border-gray-200 hover:border-gray-300 text-gray-700 hover:text-gray-800 transition-all duration-200 hover:shadow-sm"
+                  >
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                    Refresh
+                  </Button>
                 </div>
+              </div>
+            </div>
+
+            {/* Books Display */}
+            <Card className="shadow-lg border-0">
+              <CardContent className="p-6">
+                {loading ? (
+                  <div className="flex items-center justify-center py-20">
+                    <div className="text-center">
+                      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                      <p className="text-gray-600 text-lg">Discovering amazing books for you...</p>
+                    </div>
+                  </div>
+                ) : books.length === 0 ? (
+                  <div className="text-center py-20">
+                    <BookOpen className="w-20 h-20 text-gray-300 mx-auto mb-6" />
+                    <h3 className="text-2xl font-bold text-gray-900 mb-3">No books found</h3>
+                    <p className="text-gray-600 text-lg mb-6">Try adjusting your search terms or filters.</p>
+                    <Button onClick={loadBooks} variant="outline">
+                      <RefreshCw className="w-4 h-4 mr-2" />
+                      Refresh Collection
+                    </Button>
+                  </div>
+                ) : (
+                  <div className={`
+                    ${viewMode === 'grid' 
+                      ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6' 
+                      : 'space-y-4'
+                    }
+                    transition-all duration-300
+                  `}>
+                    {books.map((book, index) => (
+                      <div 
+                        key={book._id}
+                        className="animate-fadeIn"
+                        style={{ animationDelay: `${index * 50}ms` }}
+                      >
+                        <BookCard
+                          book={book}
+                          variant={viewMode}
+                          onView={handleBookView}
+                          onBorrow={borrowBook}
+                          onReserve={reserveBook}
+                          imageKey={imageKey}
+                          canBorrow={studentStats.availableToLoan > 0}
+                          canReserve={studentStats.availableToLoan > 0}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Results Summary */}
+                {books.length > 0 && (
+                  <div className="mt-8 pt-6 border-t border-gray-200">
+                    <div className="flex items-center justify-between text-sm text-gray-600">
+                      <span>Showing {books.length} books</span>
+                      <div className="flex items-center gap-4">
+                        <span className="flex items-center gap-1">
+                          <TrendingUp className="w-4 h-4" />
+                          Popular this week
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Star className="w-4 h-4 text-yellow-500" />
+                          Highly rated
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -801,7 +998,7 @@ export default function StudentDashboard() {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <DollarSign className="w-5 h-5" />
+                  <PesoSign className="w-5 h-5" />
                   My Fines
                 </CardTitle>
               </CardHeader>
@@ -820,7 +1017,7 @@ export default function StudentDashboard() {
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className="text-lg font-bold text-red-600">${fine.amount.toFixed(2)}</div>
+                        <div className="text-lg font-bold text-red-600">₱{fine.amount.toFixed(2)}</div>
                         {fine.status === 'pending' && (
                           <Button size="sm" className="mt-2">
                             Pay Online
@@ -968,7 +1165,7 @@ export default function StudentDashboard() {
                       </div>
                       {loan.fineAmount > 0 && (
                         <div className="text-right">
-                          <div className="text-sm text-red-600">Fine: ${loan.fineAmount.toFixed(2)}</div>
+                          <div className="text-sm text-red-600">Fine: ₱{loan.fineAmount.toFixed(2)}</div>
                         </div>
                       )}
                     </div>
@@ -1002,14 +1199,38 @@ export default function StudentDashboard() {
                         <p className="text-sm text-gray-600">{user.email}</p>
                       </div>
                     </div>
+                    
+                    {/* Name Field */}
                     <div>
                       <label className="text-sm font-medium text-gray-600">Full Name</label>
-                      <p className="mt-1 text-lg">{user.name}</p>
+                      {isEditingProfile ? (
+                        <Input
+                          value={editableUser.name}
+                          onChange={(e) => setEditableUser({...editableUser, name: e.target.value})}
+                          className="mt-1"
+                          placeholder="Enter your full name"
+                        />
+                      ) : (
+                        <p className="mt-1 text-lg">{user.name}</p>
+                      )}
                     </div>
+                    
+                    {/* Email Field */}
                     <div>
                       <label className="text-sm font-medium text-gray-600">Email Address</label>
-                      <p className="mt-1">{user.email}</p>
+                      {isEditingProfile ? (
+                        <Input
+                          type="email"
+                          value={editableUser.email}
+                          onChange={(e) => setEditableUser({...editableUser, email: e.target.value})}
+                          className="mt-1"
+                          placeholder="Enter your email address"
+                        />
+                      ) : (
+                        <p className="mt-1">{user.email}</p>
+                      )}
                     </div>
+                    
                     <div>
                       <label className="text-sm font-medium text-gray-600">Student ID</label>
                       <p className="mt-1 font-mono bg-gray-100 px-2 py-1 rounded text-sm">
@@ -1043,15 +1264,55 @@ export default function StudentDashboard() {
                 </div>
                 
                 <div className="mt-6 pt-6 border-t">
-                  <Button variant="outline">
-                    Edit Profile
-                  </Button>
+                  {isEditingProfile ? (
+                    <div className="flex gap-3">
+                      <Button 
+                        onClick={handleSaveProfile}
+                        className="h-10 px-6 font-medium bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg transition-all duration-200 hover:scale-105 active:scale-95"
+                      >
+                        <Save className="w-4 h-4 mr-2" />
+                        Save Changes
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        onClick={handleCancelEdit}
+                        className="h-10 px-6 font-medium bg-white hover:bg-gray-50 border-gray-200 hover:border-gray-300 text-gray-700 hover:text-gray-800 transition-all duration-200 hover:shadow-sm"
+                      >
+                        <X className="w-4 h-4 mr-2" />
+                        Cancel
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button 
+                      variant="outline" 
+                      onClick={handleEditProfile}
+                      className="h-10 px-6 font-medium bg-white hover:bg-gray-50 border-gray-200 hover:border-gray-300 text-gray-700 hover:text-gray-800 transition-all duration-200 hover:shadow-sm"
+                    >
+                      <Edit className="w-4 h-4 mr-2" />
+                      Edit Profile
+                    </Button>
+                  )}
                 </div>
               </CardContent>
             </Card>
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Enhanced Book View Modal */}
+      {selectedBook && (
+        <BookViewModal
+          book={selectedBook}
+          isOpen={isBookViewModalOpen}
+          onClose={() => setIsBookViewModalOpen(false)}
+          onBorrow={borrowBook}
+          onReserve={reserveBook}
+          imageKey={imageKey}
+          canBorrow={studentStats.availableToLoan > 0}
+          canReserve={studentStats.availableToLoan > 0}
+          showEditButton={false}
+        />
+      )}
     </div>
   );
 } 

@@ -121,6 +121,38 @@ function calculateOverdueFine(dueDate: Date, returnDate: Date = new Date()): num
   return overdueDays > 0 ? overdueDays * 0.50 : 0; // $0.50 per day
 }
 
+// Helper function to handle reservation cleanup when book availability changes
+async function handleReservationCleanup(bookId: string, bookTitle: string, reason: string) {
+  try {
+    // Find all pending reservations for this book
+    const pendingReservations = await Reservation.find({
+      bookId,
+      status: 'pending'
+    }).populate('userId', 'name email');
+
+    // Cancel all pending reservations
+    for (const reservation of pendingReservations) {
+      reservation.status = 'cancelled';
+      reservation.notes = reason;
+      await reservation.save();
+
+      // Create notification for user
+      await Notification.create({
+        userId: reservation.userId._id,
+        type: 'general',
+        title: 'Reservation Cancelled',
+        message: `Your reservation for "${bookTitle}" has been cancelled: ${reason}`,
+        relatedReservationId: reservation._id
+      });
+    }
+
+    return pendingReservations.length;
+  } catch (error) {
+    console.error('Error handling reservation cleanup:', error);
+    return 0;
+  }
+}
+
 // GET /api/librarian/dashboard - Get librarian dashboard stats
 export async function getLibrarianDashboard(req: Request, res: Response) {
   try {
@@ -194,9 +226,20 @@ export async function getLibrarianBooks(req: Request, res: Response) {
           author: book.author,
           isbn: book.isbn,
           genre: book.genre,
+          publisher: book.publisher,
+          publishedYear: book.publishedYear,
+          description: book.description,
+          coverImage: book.coverImage,
           totalCopies: book.totalCopies,
           availableCopies: book.availableCopies,
           currentLoans: activeLoans,
+          location: book.location,
+          language: book.language,
+          pages: book.pages,
+          hasDownload: book.hasDownload,
+          hasReadOnline: book.hasReadOnline,
+          categories: book.categories,
+          addedDate: book.addedDate,
           status: book.availableCopies === 0 ? 'out-of-stock' : 
                   book.availableCopies <= 2 ? 'low-stock' : 'available'
         };
@@ -486,6 +529,27 @@ export async function getReservations(req: Request, res: Response) {
       query = { status };
     }
 
+    // Check for expired ready reservations and mark them as expired
+    const expiredReservations = await Reservation.find({
+      status: 'ready',
+      expiryDate: { $lt: new Date() }
+    });
+
+    for (const reservation of expiredReservations) {
+      reservation.status = 'expired';
+      reservation.notes = 'Reservation expired - not picked up within 7 days';
+      await reservation.save();
+
+      // Create notification for user
+      await Notification.create({
+        userId: reservation.userId,
+        type: 'general',
+        title: 'Reservation Expired',
+        message: `Your reservation for "${(reservation.bookId as any).title}" has expired because it was not picked up within 7 days.`,
+        relatedReservationId: reservation._id
+      });
+    }
+
     const reservations = await Reservation.find(query)
       .populate('userId', 'name email')
       .populate('bookId', 'title author isbn')
@@ -579,7 +643,132 @@ export {
   calculateOverdueFine
 };
 
-// PUT /api/librarian/reservations/:id - Update reservation status
+// GET /api/librarian/inventory-audits - Get inventory audits
+export async function getInventoryAudits(req: Request, res: Response) {
+  try {
+    const { bookId, status, resolved } = req.query;
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+    const skip = (page - 1) * limit;
+
+    let query: any = {};
+    if (bookId) query.bookId = bookId;
+    if (status) query.status = status;
+    if (resolved !== undefined) query.resolved = resolved === 'true';
+
+    const audits = await InventoryAudit.find(query)
+      .populate('bookId', 'title author isbn')
+      .populate('auditedBy', 'name email')
+      .populate('resolvedBy', 'name email')
+      .sort({ auditDate: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    const total = await InventoryAudit.countDocuments(query);
+
+    res.json({
+      audits,
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit)
+      }
+    });
+  } catch (error) {
+    console.error('Get inventory audits error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+}
+
+// POST /api/librarian/inventory-audits - Create inventory audit
+export async function createInventoryAudit(req: Request, res: Response) {
+  try {
+    const librarian = (req as any).user;
+    const { bookId, expectedCount, actualCount, notes } = req.body;
+
+    if (!bookId || expectedCount === undefined || actualCount === undefined) {
+      return res.status(400).json({ message: 'Book ID, expected count, and actual count are required' });
+    }
+
+    // Check if book exists
+    const book = await Book.findById(bookId);
+    if (!book) {
+      return res.status(404).json({ message: 'Book not found' });
+    }
+
+    const discrepancy = actualCount - expectedCount;
+    let status = 'match';
+    
+    if (discrepancy < 0) {
+      status = 'shortage';
+    } else if (discrepancy > 0) {
+      status = 'surplus';
+    }
+
+    const audit = await InventoryAudit.create({
+      bookId,
+      auditedBy: librarian._id,
+      expectedCount,
+      actualCount,
+      discrepancy,
+      status,
+      notes: notes || ''
+    });
+
+    // Populate the audit with book and user details
+    const populatedAudit = await InventoryAudit.findById(audit._id)
+      .populate('bookId', 'title author isbn')
+      .populate('auditedBy', 'name email');
+
+    res.status(201).json({
+      message: 'Inventory audit created successfully',
+      audit: populatedAudit
+    });
+  } catch (error) {
+    console.error('Create inventory audit error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+}
+
+// PUT /api/librarian/inventory-audits/:id - Resolve inventory audit
+export async function resolveInventoryAudit(req: Request, res: Response) {
+  try {
+    const librarian = (req as any).user;
+    const { id } = req.params;
+    const { resolved, notes } = req.body;
+
+    const audit = await InventoryAudit.findById(id)
+      .populate('bookId', 'title author isbn');
+      
+    if (!audit) {
+      return res.status(404).json({ message: 'Inventory audit not found' });
+    }
+
+    audit.resolved = resolved || true;
+    audit.resolvedBy = librarian._id;
+    audit.resolvedDate = new Date();
+    if (notes) audit.notes = notes;
+    
+    await audit.save();
+
+    // Populate the audit with user details
+    const populatedAudit = await InventoryAudit.findById(audit._id)
+      .populate('bookId', 'title author isbn')
+      .populate('auditedBy', 'name email')
+      .populate('resolvedBy', 'name email');
+
+    res.json({
+      message: 'Inventory audit resolved successfully',
+      audit: populatedAudit
+    });
+  } catch (error) {
+    console.error('Resolve inventory audit error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+}
+
+// PUT /api/librarian/reservations/:id - Update reservation status (FIXED)
 export async function updateReservation(req: Request, res: Response) {
   try {
     const { id } = req.params;
@@ -597,6 +786,8 @@ export async function updateReservation(req: Request, res: Response) {
       return res.status(404).json({ message: 'Reservation not found' });
     }
 
+    const oldStatus = reservation.status;
+
     // Update reservation
     reservation.status = status;
     if (notes) reservation.notes = notes;
@@ -606,6 +797,29 @@ export async function updateReservation(req: Request, res: Response) {
     }
     
     await reservation.save();
+
+    // Handle book status changes based on reservation status
+    if (status === 'ready' && oldStatus === 'pending') {
+      // When marking as ready, check if book is available
+      const book = await Book.findById(reservation.bookId);
+      if (book && book.availableCopies > 0) {
+        // Book is available, no need to change book status
+      } else if (book) {
+        // Book is not available, this might be a manual override
+        console.log(`Warning: Marking reservation as ready for book with ${book.availableCopies} available copies`);
+      }
+    } else if (status === 'fulfilled' && oldStatus === 'ready') {
+      // When fulfilling a reservation, reduce available copies
+      const book = await Book.findById(reservation.bookId);
+      if (book && book.availableCopies > 0) {
+        await Book.findByIdAndUpdate(reservation.bookId, {
+          $inc: { availableCopies: -1 }
+        });
+      }
+    } else if (status === 'cancelled' && oldStatus === 'ready') {
+      // When cancelling a ready reservation, potentially increase available copies
+      // This is optional as the book might have been made available for other purposes
+    }
 
     // Create notification for user
     let notificationTitle = '';
@@ -623,6 +837,10 @@ export async function updateReservation(req: Request, res: Response) {
       case 'expired':
         notificationTitle = 'Reservation Expired';
         notificationMessage = `Your reservation for "${(reservation.bookId as any).title}" has expired.`;
+        break;
+      case 'fulfilled':
+        notificationTitle = 'Reservation Fulfilled';
+        notificationMessage = `Your reservation for "${(reservation.bookId as any).title}" has been fulfilled.`;
         break;
     }
     
@@ -860,9 +1078,18 @@ export async function createBook(req: Request, res: Response) {
         author: newBook.author,
         isbn: newBook.isbn,
         genre: newBook.genre,
+        publisher: newBook.publisher,
+        publishedYear: newBook.publishedYear,
+        description: newBook.description,
+        coverImage: newBook.coverImage,
         totalCopies: newBook.totalCopies,
         availableCopies: newBook.availableCopies,
         location: newBook.location,
+        language: newBook.language,
+        pages: newBook.pages,
+        hasDownload: newBook.hasDownload,
+        hasReadOnline: newBook.hasReadOnline,
+        categories: newBook.categories,
         addedDate: newBook.addedDate
       }
     });
@@ -892,6 +1119,33 @@ export async function updateBook(req: Request, res: Response) {
       }
     }
 
+    // Check if total copies are being reduced
+    if (updateData.totalCopies !== undefined && updateData.totalCopies < book.totalCopies) {
+      const reduction = book.totalCopies - updateData.totalCopies;
+      
+      // Check if reduction would make available copies negative
+      if (book.availableCopies - reduction < 0) {
+        return res.status(400).json({ 
+          message: `Cannot reduce total copies to ${updateData.totalCopies}. There are ${book.availableCopies} available copies and ${book.totalCopies - book.availableCopies} on loan.`
+        });
+      }
+
+      // Check for pending reservations that might be affected
+      const pendingReservations = await Reservation.countDocuments({
+        bookId: id,
+        status: 'pending'
+      });
+
+      if (pendingReservations > 0) {
+        return res.status(400).json({ 
+          message: `Cannot reduce copies. There are ${pendingReservations} pending reservation(s) for this book. Please handle reservations first.`
+        });
+      }
+
+      // Update available copies accordingly
+      updateData.availableCopies = Math.max(0, book.availableCopies - reduction);
+    }
+
     const updatedBook = await Book.findByIdAndUpdate(
       id,
       { ...updateData, lastUpdated: new Date() },
@@ -906,9 +1160,18 @@ export async function updateBook(req: Request, res: Response) {
         author: updatedBook.author,
         isbn: updatedBook.isbn,
         genre: updatedBook.genre,
+        publisher: updatedBook.publisher,
+        publishedYear: updatedBook.publishedYear,
+        description: updatedBook.description,
+        coverImage: updatedBook.coverImage,
         totalCopies: updatedBook.totalCopies,
         availableCopies: updatedBook.availableCopies,
         location: updatedBook.location,
+        language: updatedBook.language,
+        pages: updatedBook.pages,
+        hasDownload: updatedBook.hasDownload,
+        hasReadOnline: updatedBook.hasReadOnline,
+        categories: updatedBook.categories,
         addedDate: updatedBook.addedDate,
         lastUpdated: updatedBook.lastUpdated
       }
@@ -972,22 +1235,90 @@ export async function updateBookStatus(req: Request, res: Response) {
 
     let updateData: any = { lastUpdated: new Date() };
     let message = '';
+    let reservationUpdates = [];
+
+    // Check for pending reservations that might be affected
+    const pendingReservations = await Reservation.find({
+      bookId: id,
+      status: 'pending'
+    }).populate('userId', 'name email');
 
     switch (action) {
       case 'mark_lost':
+        // Check if marking as lost would make book unavailable for pending reservations
+        if (book.availableCopies - affectedCopies <= 0 && pendingReservations.length > 0) {
+          return res.status(400).json({ 
+            message: `Cannot mark ${affectedCopies} copy(ies) as lost. There are ${pendingReservations.length} pending reservation(s) for this book.`,
+            reservations: pendingReservations
+          });
+        }
+        
         updateData.availableCopies = Math.max(0, book.availableCopies - affectedCopies);
         updateData.totalCopies = Math.max(0, book.totalCopies - affectedCopies);
         message = `Marked ${affectedCopies} copy(ies) as lost`;
         break;
+        
       case 'mark_damaged':
+        // Check if marking as damaged would make book unavailable for pending reservations
+        if (book.availableCopies - affectedCopies <= 0 && pendingReservations.length > 0) {
+          return res.status(400).json({ 
+            message: `Cannot mark ${affectedCopies} copy(ies) as damaged. There are ${pendingReservations.length} pending reservation(s) for this book.`,
+            reservations: pendingReservations
+          });
+        }
+        
         updateData.availableCopies = Math.max(0, book.availableCopies - affectedCopies);
         message = `Marked ${affectedCopies} copy(ies) as damaged`;
         break;
+        
       case 'mark_available':
         updateData.availableCopies = book.availableCopies + affectedCopies;
         message = `Marked ${affectedCopies} copy(ies) as available`;
+        
+        // If book becomes available, check if any pending reservations can be marked as ready
+        if (pendingReservations.length > 0) {
+          const readyReservations = pendingReservations.slice(0, Math.min(affectedCopies, pendingReservations.length));
+          
+          for (const reservation of readyReservations) {
+            reservation.status = 'ready';
+            reservation.expiryDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+            reservation.notes = 'Automatically marked ready - book became available';
+            await reservation.save();
+            
+            // Create notification
+            await Notification.create({
+              userId: reservation.userId._id,
+              type: 'reservation_ready',
+              title: 'Book Ready for Pickup',
+              message: `Your reserved book "${book.title}" is now ready for pickup. Please collect it within 7 days.`,
+              relatedReservationId: reservation._id
+            });
+            
+            reservationUpdates.push(reservation);
+          }
+          
+          if (readyReservations.length > 0) {
+            message += `. ${readyReservations.length} reservation(s) automatically marked as ready.`;
+          }
+        }
         break;
+        
       case 'adjust_copies':
+        // Check if adjustment would make available copies negative
+        if (affectedCopies < book.totalCopies - book.availableCopies) {
+          return res.status(400).json({ 
+            message: `Cannot reduce total copies to ${affectedCopies}. There are ${book.totalCopies - book.availableCopies} copies currently on loan.`
+          });
+        }
+        
+        // Check if adjustment would affect pending reservations
+        if (affectedCopies < book.availableCopies && pendingReservations.length > 0) {
+          return res.status(400).json({ 
+            message: `Cannot reduce copies to ${affectedCopies}. There are ${pendingReservations.length} pending reservation(s) for this book.`,
+            reservations: pendingReservations
+          });
+        }
+        
         updateData.totalCopies = affectedCopies;
         updateData.availableCopies = Math.min(book.availableCopies, affectedCopies);
         message = `Adjusted total copies to ${affectedCopies}`;
@@ -998,7 +1329,8 @@ export async function updateBookStatus(req: Request, res: Response) {
 
     res.json({
       message,
-      book: updatedBook
+      book: updatedBook,
+      reservationUpdates
     });
   } catch (error) {
     console.error('Update book status error:', error);

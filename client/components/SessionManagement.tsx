@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "./ui/alert-dialog";
-import { toast } from "./ui/use-toast";
+import { toast } from "sonner";
 import { Monitor, Smartphone, Tablet, MapPin, Clock, Shield, LogOut } from "lucide-react";
 
 interface DeviceInfo {
@@ -44,18 +44,10 @@ export default function SessionManagement() {
         const data = await response.json();
         setSessions(data.sessions);
       } else {
-        toast({
-          title: "Error",
-          description: "Failed to load sessions",
-          variant: "destructive",
-        });
+        toast.error("Failed to load sessions");
       }
     } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to load sessions",
-        variant: "destructive",
-      });
+      toast.error("Failed to load sessions");
     } finally {
       setLoading(false);
     }
@@ -73,24 +65,13 @@ export default function SessionManagement() {
 
       if (response.ok) {
         setSessions(prev => prev.filter(session => session.sessionId !== sessionId));
-        toast({
-          title: "Session Revoked",
-          description: "The session has been successfully revoked",
-        });
+        toast.success("The session has been successfully revoked");
       } else {
         const data = await response.json();
-        toast({
-          title: "Error",
-          description: data.message || "Failed to revoke session",
-          variant: "destructive",
-        });
+        toast.error(data.message || "Failed to revoke session");
       }
     } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to revoke session",
-        variant: "destructive",
-      });
+      toast.error("Failed to revoke session");
     } finally {
       setRevoking(null);
     }
@@ -108,24 +89,13 @@ export default function SessionManagement() {
 
       if (response.ok) {
         setSessions(prev => prev.filter(session => session.isCurrent));
-        toast({
-          title: "Sessions Revoked",
-          description: "All other sessions have been revoked",
-        });
+        toast.success("All other sessions have been revoked");
       } else {
         const data = await response.json();
-        toast({
-          title: "Error",
-          description: data.message || "Failed to revoke sessions",
-          variant: "destructive",
-        });
+        toast.error(data.message || "Failed to revoke sessions");
       }
     } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to revoke sessions",
-        variant: "destructive",
-      });
+      toast.error("Failed to revoke sessions");
     } finally {
       setRevoking(null);
     }

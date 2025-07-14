@@ -146,8 +146,10 @@ export default function SearchHistory() {
   const handleCloseRegisterModal = () => setIsRegisterModalOpen(false);
 
   const handleDeleteBrowsingData = () => {
-    // This would typically show a confirmation dialog and then clear the data
-    alert("Delete browsing data functionality would be implemented here");
+    if (window.confirm("Are you sure you want to delete all browsing history? This action cannot be undone.")) {
+      setHistoryEntries([]);
+      alert("Browsing history deleted.");
+    }
   };
 
   return (

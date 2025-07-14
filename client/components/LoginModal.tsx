@@ -1,9 +1,8 @@
 import { useState } from "react";
-import { X } from "lucide-react";
 import { useAuth } from "../hooks/use-auth";
 import { useNavigate } from "react-router-dom";
 import ForgotPasswordModal from "./ForgotPasswordModal";
-import { toast } from "./ui/use-toast";
+import { toast } from "sonner";
 
 interface LoginModalProps {
   isOpen: boolean;
@@ -26,10 +25,7 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
 
   const handleGoogleLogin = () => {
     // Google OAuth integration would be implemented here
-    toast({
-      title: "Google Login",
-      description: "Google OAuth integration coming soon. Please use email/password login.",
-    });
+    toast.info("Google OAuth integration coming soon. Please use email/password login.");
   };
 
   const handleLogin = async () => {
@@ -80,16 +76,14 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black bg-opacity-50 pt-16 overflow-y-auto">
-      <div className="bg-white rounded-lg w-full max-w-md mx-4 relative">
-        {/* Close button */}
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 text-black hover:text-gray-600"
-        >
-          <X size={24} />
-        </button>
-
+    <div 
+      className="fixed inset-0 z-50 flex items-start justify-center bg-black bg-opacity-50 pt-16 overflow-y-auto"
+      onClick={onClose}
+    >
+      <div 
+        className="bg-white rounded-lg w-full max-w-md mx-4 relative"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="p-12">
           {/* Title */}
           <h2 className="text-5xl font-actor text-black text-center mb-12">
