@@ -366,7 +366,7 @@ export default function MyAccount() {
           
           {/* Sidebar - User Overview */}
           <div className="lg:col-span-4 xl:col-span-3">
-            <FadeIn delay={100}>
+          <FadeIn delay={100}>
               <Card className="overflow-hidden">
                 <CardHeader className="text-center bg-gradient-to-br from-blue-50 to-indigo-50 pb-6">
                   <div className="flex justify-center mb-4">
@@ -392,15 +392,15 @@ export default function MyAccount() {
                         <div className="flex justify-between items-center py-2">
                           <span className="text-sm text-gray-600">Member Since</span>
                           <span className="text-sm font-medium text-gray-900">
-                            {formatDate(new Date())}
-                          </span>
-                        </div>
-                        
+                      {formatDate(new Date())}
+                    </span>
+                  </div>
+                  
                         <div className="flex justify-between items-center py-2">
                           <span className="text-sm text-gray-600">Last Login</span>
                           <span className="text-sm font-medium text-gray-900">
-                            {formatDate(new Date())}
-                          </span>
+                      {formatDate(new Date())}
+                    </span>
                         </div>
                         
                         <div className="flex justify-between items-center py-2">
@@ -484,15 +484,15 @@ export default function MyAccount() {
                         </div>
                       )}
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
+                </div>
+              </CardContent>
+            </Card>
             </FadeIn>
-          </div>
+            </div>
 
           {/* Main Content Area */}
           <div className="lg:col-span-8 xl:col-span-9">
-            <FadeIn delay={200}>
+          <FadeIn delay={200}>
               <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
                 
                 {/* Tab Navigation */}
@@ -502,56 +502,56 @@ export default function MyAccount() {
                       value="profile" 
                       className="flex items-center gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm"
                     >
-                      <User className="w-4 h-4" />
+                  <User className="w-4 h-4" />
                       <span className="hidden sm:inline">Profile</span>
-                    </TabsTrigger>
+                </TabsTrigger>
                     <TabsTrigger 
                       value="security" 
                       className="flex items-center gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm"
                     >
-                      <Shield className="w-4 h-4" />
+                  <Shield className="w-4 h-4" />
                       <span className="hidden sm:inline">Security</span>
-                    </TabsTrigger>
+                </TabsTrigger>
                     <TabsTrigger 
                       value="preferences" 
                       className="flex items-center gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm"
                     >
-                      <Settings className="w-4 h-4" />
+                  <Settings className="w-4 h-4" />
                       <span className="hidden sm:inline">Preferences</span>
-                    </TabsTrigger>
+                </TabsTrigger>
                     <TabsTrigger 
                       value="sessions" 
                       className="flex items-center gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm"
                     >
-                      <Monitor className="w-4 h-4" />
+                  <Monitor className="w-4 h-4" />
                       <span className="hidden sm:inline">Sessions</span>
-                    </TabsTrigger>
+                </TabsTrigger>
                     <TabsTrigger 
                       value="account" 
                       className="flex items-center gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm"
                     >
-                      <Activity className="w-4 h-4" />
+                  <Activity className="w-4 h-4" />
                       <span className="hidden sm:inline">Account</span>
-                    </TabsTrigger>
-                  </TabsList>
+                </TabsTrigger>
+              </TabsList>
                 </div>
 
-                {/* Profile Tab */}
-                <TabsContent value="profile" className="space-y-6">
+              {/* Profile Tab */}
+              <TabsContent value="profile" className="space-y-6">
                   <div className="space-y-6">
                     <div className="space-y-2">
                       <h2 className="text-2xl font-semibold text-gray-900">
-                        Profile Information
-                      </h2>
+                      Profile Information
+                    </h2>
                       <p className="text-gray-600">
                         Update your personal information, contact details, and profile picture
-                      </p>
-                    </div>
-                    
+                    </p>
+                  </div>
+                  
                     <div className="grid gap-6 lg:grid-cols-2">
                       <Card className="border-gray-200 shadow-sm">
                         <CardContent className="p-6">
-                          <ProfileEditForm onSave={handleProfileSaved} />
+                  <ProfileEditForm onSave={handleProfileSaved} />
                         </CardContent>
                       </Card>
                       
@@ -561,148 +561,148 @@ export default function MyAccount() {
                         </CardContent>
                       </Card>
                     </div>
-                  </div>
-                </TabsContent>
+                </div>
+              </TabsContent>
 
-                {/* Security Tab */}
-                <TabsContent value="security" className="space-y-6">
+              {/* Security Tab */}
+              <TabsContent value="security" className="space-y-6">
                   <div className="space-y-6">
                     <div className="space-y-2">
                       <h2 className="text-2xl font-semibold text-gray-900">
-                        Security Settings
-                      </h2>
+                      Security Settings
+                    </h2>
                       <p className="text-gray-600">
-                        Manage your password and account security
-                      </p>
-                    </div>
-                    
-                    <div className="grid gap-6">
+                      Manage your password and account security
+                    </p>
+                  </div>
+                  
+                  <div className="grid gap-6">
                       <Card className="border-gray-200 shadow-sm">
                         <CardHeader className="pb-4">
                           <CardTitle className="flex items-center gap-2 text-lg">
                             <Lock className="w-5 h-5 text-gray-600" />
                             Password Management
-                          </CardTitle>
-                          <CardDescription>
-                            Last changed: {formatDate(new Date())}
-                          </CardDescription>
-                        </CardHeader>
+                        </CardTitle>
+                        <CardDescription>
+                          Last changed: {formatDate(new Date())}
+                        </CardDescription>
+                      </CardHeader>
                         <CardContent className="pt-0">
-                          <PasswordChangeForm onSuccess={handlePasswordChanged} />
-                        </CardContent>
-                      </Card>
+                        <PasswordChangeForm onSuccess={handlePasswordChanged} />
+                      </CardContent>
+                    </Card>
 
                       <Card className="border-gray-200 shadow-sm">
                         <CardHeader className="pb-4">
                           <CardTitle className="flex items-center gap-2 text-lg">
                             <Shield className="w-5 h-5 text-gray-600" />
                             Additional Security
-                          </CardTitle>
-                          <CardDescription>
+                        </CardTitle>
+                        <CardDescription>
                             Enhanced security features for your account
-                          </CardDescription>
-                        </CardHeader>
+                        </CardDescription>
+                      </CardHeader>
                         <CardContent className="pt-0">
-                          <div className="space-y-4">
+                        <div className="space-y-4">
                             <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">
                               <div className="space-y-1">
                                 <h4 className="font-medium text-gray-900">Two-Factor Authentication</h4>
-                                <p className="text-sm text-gray-600">
-                                  Add an extra layer of security to your account
-                                </p>
-                              </div>
+                              <p className="text-sm text-gray-600">
+                                Add an extra layer of security to your account
+                              </p>
+                            </div>
                               <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
                                 Coming Soon
                               </Badge>
-                            </div>
-                            
+                          </div>
+                          
                             <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">
                               <div className="space-y-1">
                                 <h4 className="font-medium text-gray-900">Login History</h4>
-                                <p className="text-sm text-gray-600">
+                              <p className="text-sm text-gray-600">
                                   View recent login activity and suspicious attempts
                                 </p>
                               </div>
                               <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
                                 Coming Soon
                               </Badge>
-                            </div>
                           </div>
-                        </CardContent>
-                      </Card>
-                    </div>
-                  </div>
-                </TabsContent>
-
-                {/* Preferences Tab */}
-                <TabsContent value="preferences" className="space-y-6">
-                  <div className="space-y-6">
-                    <div className="space-y-2">
-                      <h2 className="text-2xl font-semibold text-gray-900">
-                        User Preferences
-                      </h2>
-                      <p className="text-gray-600">
-                        Customize your library experience and notifications
-                      </p>
-                    </div>
-                    
-                    <Card className="border-gray-200 shadow-sm">
-                      <CardContent className="p-6">
-                        <UserPreferencesForm onSave={handlePreferencesSaved} />
+                        </div>
                       </CardContent>
                     </Card>
                   </div>
-                </TabsContent>
+                </div>
+              </TabsContent>
 
-                {/* Sessions Tab */}
-                <TabsContent value="sessions" className="space-y-6">
+              {/* Preferences Tab */}
+              <TabsContent value="preferences" className="space-y-6">
                   <div className="space-y-6">
                     <div className="space-y-2">
                       <h2 className="text-2xl font-semibold text-gray-900">
-                        Session Management
-                      </h2>
+                      User Preferences
+                    </h2>
                       <p className="text-gray-600">
-                        View and manage your active sessions across all devices
-                      </p>
-                    </div>
-                    
+                      Customize your library experience and notifications
+                    </p>
+                  </div>
+                  
                     <Card className="border-gray-200 shadow-sm">
                       <CardContent className="p-6">
-                        <SessionManagement />
+                  <UserPreferencesForm onSave={handlePreferencesSaved} />
                       </CardContent>
                     </Card>
-                  </div>
-                </TabsContent>
+                </div>
+              </TabsContent>
 
-                {/* Account Tab */}
-                <TabsContent value="account" className="space-y-6">
+              {/* Sessions Tab */}
+              <TabsContent value="sessions" className="space-y-6">
                   <div className="space-y-6">
                     <div className="space-y-2">
                       <h2 className="text-2xl font-semibold text-gray-900">
-                        Account Management
-                      </h2>
+                      Session Management
+                    </h2>
                       <p className="text-gray-600">
-                        Manage your account settings and data
-                      </p>
-                    </div>
-                    
-                    <div className="grid gap-6">
+                      View and manage your active sessions across all devices
+                    </p>
+                  </div>
+                  
+                    <Card className="border-gray-200 shadow-sm">
+                      <CardContent className="p-6">
+                  <SessionManagement />
+                      </CardContent>
+                    </Card>
+                </div>
+              </TabsContent>
+
+              {/* Account Tab */}
+              <TabsContent value="account" className="space-y-6">
+                  <div className="space-y-6">
+                    <div className="space-y-2">
+                      <h2 className="text-2xl font-semibold text-gray-900">
+                      Account Management
+                    </h2>
+                      <p className="text-gray-600">
+                      Manage your account settings and data
+                    </p>
+                  </div>
+                  
+                  <div className="grid gap-6">
                       <Card className="border-gray-200 shadow-sm">
                         <CardHeader className="pb-4">
                           <CardTitle className="flex items-center gap-2 text-lg">
                             <Mail className="w-5 h-5 text-gray-600" />
                             Email & Communication
-                          </CardTitle>
-                          <CardDescription>
+                        </CardTitle>
+                        <CardDescription>
                             Manage your email preferences and communication settings
-                          </CardDescription>
-                        </CardHeader>
+                        </CardDescription>
+                      </CardHeader>
                         <CardContent className="pt-0">
-                          <div className="space-y-4">
+                        <div className="space-y-4">
                             <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">
                               <div className="space-y-1">
                                 <h4 className="font-medium text-gray-900">Email Notifications</h4>
-                                <p className="text-sm text-gray-600">
+                              <p className="text-sm text-gray-600">
                                   Receive updates about your library account
                                 </p>
                               </div>
@@ -713,21 +713,21 @@ export default function MyAccount() {
                               >
                                 {user.preferences?.notifications ? 'Enabled' : 'Disabled'}
                               </Badge>
-                            </div>
                           </div>
-                        </CardContent>
-                      </Card>
+                        </div>
+                      </CardContent>
+                    </Card>
 
                       <Card className="border-gray-200 shadow-sm">
                         <CardHeader className="pb-4">
                           <CardTitle className="flex items-center gap-2 text-lg">
                             <Activity className="w-5 h-5 text-gray-600" />
-                            Account Activity
-                          </CardTitle>
-                          <CardDescription>
+                          Account Activity
+                        </CardTitle>
+                        <CardDescription>
                             Your recent library activity and usage statistics
-                          </CardDescription>
-                        </CardHeader>
+                        </CardDescription>
+                      </CardHeader>
                         <CardContent className="pt-0">
                           {loading ? (
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -771,32 +771,32 @@ export default function MyAccount() {
                             <div className="text-center py-8 text-gray-500">
                               <Activity className="w-12 h-12 mx-auto mb-4 text-gray-400" />
                               <p>No activity data available</p>
-                            </div>
+                          </div>
                           )}
-                        </CardContent>
-                      </Card>
+                      </CardContent>
+                    </Card>
 
                       <Card className="border-red-200 shadow-sm bg-red-50">
                         <CardHeader className="pb-4">
                           <CardTitle className="flex items-center gap-2 text-lg text-red-700">
-                            <Trash2 className="w-5 h-5" />
+                          <Trash2 className="w-5 h-5" />
                             Danger Zone
-                          </CardTitle>
-                          <CardDescription className="text-red-600">
+                        </CardTitle>
+                        <CardDescription className="text-red-600">
                             Permanently delete your account and all associated data. This action cannot be undone.
-                          </CardDescription>
-                        </CardHeader>
+                        </CardDescription>
+                      </CardHeader>
                         <CardContent className="pt-0">
-                          <AccountDeletionForm onSuccess={handleAccountDeleted} />
-                        </CardContent>
-                      </Card>
-                    </div>
+                        <AccountDeletionForm onSuccess={handleAccountDeleted} />
+                      </CardContent>
+                    </Card>
                   </div>
-                </TabsContent>
+                </div>
+              </TabsContent>
                 
-              </Tabs>
+            </Tabs>
             </FadeIn>
-          </div>
+            </div>
         </div>
       </div>
     </div>

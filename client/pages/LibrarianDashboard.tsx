@@ -1238,7 +1238,7 @@ export default function LibrarianDashboard() {
                     </Label>
                     <Input
                       id="userId"
-                      placeholder="e.g., 2021-12345, STU001"
+                      placeholder="e.g., STD-25CS-0714-001 or student@email.com"
                       value={issueBookForm.userId}
                       onChange={(e) => {
                         setIssueBookForm({...issueBookForm, userId: e.target.value});
@@ -1254,7 +1254,7 @@ export default function LibrarianDashboard() {
                     )}
                     <p className="text-xs text-gray-500 flex items-center gap-1">
                       <Info className="w-3 h-3" />
-                      Enter the student's unique ID number
+                      Enter the student's ID (e.g., STD-25CS-0714-001) or email
                     </p>
                   </div>
 
@@ -1264,15 +1264,17 @@ export default function LibrarianDashboard() {
                       <BookOpen className="w-4 h-4" />
                       Book ID *
                     </Label>
-                    <Input
+                    <input
                       id="bookId"
-                      placeholder="e.g., BK001, ISBN-123"
+                      type="text"
+                      placeholder="Enter book title or ISBN"
                       value={issueBookForm.bookId}
                       onChange={(e) => {
                         setIssueBookForm({...issueBookForm, bookId: e.target.value});
                         if (formErrors.bookId) setFormErrors({...formErrors, bookId: ""});
                       }}
-                      className={formErrors.bookId ? "border-red-500" : ""}
+                      className={`flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-base ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm ${formErrors.bookId ? "border-red-500" : ""}`}
+                      disabled={false}
                     />
                     {formErrors.bookId && (
                       <p className="text-sm text-red-500 flex items-center gap-1">
@@ -1282,7 +1284,7 @@ export default function LibrarianDashboard() {
                     )}
                     <p className="text-xs text-gray-500 flex items-center gap-1">
                       <Info className="w-3 h-3" />
-                      Enter the book's unique ID or ISBN
+                      Enter the book's title or ISBN
                     </p>
                   </div>
 

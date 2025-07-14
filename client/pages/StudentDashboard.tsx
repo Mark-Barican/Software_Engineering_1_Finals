@@ -253,6 +253,34 @@ export default function StudentDashboard() {
     }
   };
 
+  const borrowBook = async (bookId: string) => {
+    try {
+      const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+      const response = await fetch('/api/student/loans', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ bookId, loanDays: 14 })
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        alert(`Book borrowed successfully! Due date: ${new Date(result.dueDate).toLocaleDateString()}`);
+        loadLoans();
+        loadBooks();
+        loadStudentStats();
+      } else {
+        const error = await response.json();
+        alert(`Error: ${error.message}`);
+      }
+    } catch (error) {
+      console.error('Error borrowing book:', error);
+      alert('Error borrowing book');
+    }
+  };
+
   const reserveBook = async (bookId: string) => {
     try {
       const token = localStorage.getItem('token') || sessionStorage.getItem('token');
@@ -276,6 +304,34 @@ export default function StudentDashboard() {
     } catch (error) {
       console.error('Error reserving book:', error);
       alert('Error reserving book');
+    }
+  };
+
+  const returnBook = async (loanId: string) => {
+    try {
+      const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+      const response = await fetch(`/api/student/loans/${loanId}/return`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        if (result.fine) {
+          alert(`Book returned successfully! Fine of $${result.fine.toFixed(2)} has been applied for overdue.`);
+        } else {
+          alert('Book returned successfully!');
+        }
+        loadLoans();
+        loadBooks();
+        loadStudentStats();
+      } else {
+        const error = await response.json();
+        alert(`Error: ${error.message}`);
+      }
+    } catch (error) {
+      console.error('Error returning book:', error);
+      alert('Error returning book');
     }
   };
 
@@ -602,7 +658,17 @@ export default function StudentDashboard() {
                               <Eye className="w-4 h-4 mr-2" />
                               View Details
                             </Button>
-                            {book.availableCopies === 0 && (
+                            {book.availableCopies > 0 ? (
+                              <Button 
+                                size="sm"
+                                onClick={() => borrowBook(book._id)}
+                                disabled={studentStats.availableToLoan === 0}
+                                className="bg-blue-600 hover:bg-blue-700 text-white"
+                              >
+                                <BookOpen className="w-4 h-4 mr-2" />
+                                Borrow
+                              </Button>
+                            ) : (
                               <Button 
                                 size="sm"
                                 onClick={() => reserveBook(book._id)}
@@ -662,6 +728,15 @@ export default function StudentDashboard() {
                         >
                           <RefreshCw className="w-4 h-4 mr-2" />
                           Renew
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => returnBook(loan._id)}
+                          className="text-red-600 hover:text-red-700 border-red-300"
+                        >
+                          <XCircle className="w-4 h-4 mr-2" />
+                          Return
                         </Button>
                       </div>
                     </div>

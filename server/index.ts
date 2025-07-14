@@ -6,7 +6,9 @@ import mongoose from "mongoose";
 import { register, login, forgotPassword, resetPassword, getUserSessions, revokeSession, revokeAllSessions, refreshSession, verifyTokenWithSession, requireAdmin, requireLibrarian, requireUser, uploadProfilePicture, getProfilePicture, removeProfilePicture } from "./routes/auth";
 import { getAdminStats, getUsers, createUser, updateUser, deleteUser, getBooks, createBook, updateBook, deleteBook } from "./routes/admin";
 import { getLibrarianDashboard, getLibrarianBooks, getBook, createBook as createLibrarianBook, updateBook as updateLibrarianBook, issueBook, returnBook, getLoans, getOverdueBooks, getReservations, searchUsers, getUserLoans, updateReservation, createFine, updateFine, getFines, updateBookStatus, sendNotification } from "./routes/librarian";
-import { getStudentStats, getBooksForStudent, getStudentLoans, renewLoan, getStudentReservations, createReservation, cancelReservation, getStudentFines, getStudentNotifications, markNotificationAsRead, submitFeedback, submitBookSuggestion, getStudentProfile } from "./routes/student";
+import { getStudentStats, getBooksForStudent, getStudentLoans, borrowBook, returnStudentBook, renewLoan, getStudentReservations, createReservation, cancelReservation, getStudentFines, getStudentNotifications, markNotificationAsRead, submitFeedback, submitBookSuggestion, getStudentProfile } from "./routes/student";
+import { searchBooks, getSearchSuggestions } from "./routes/search";
+import { getBookDetails, getAllBooks } from "./routes/books";
 
 export function createServer() {
   const app = express();
@@ -97,6 +99,8 @@ export function createServer() {
   app.get("/api/student/stats", verifyTokenWithSession, requireUser, getStudentStats);
   app.get("/api/student/books", verifyTokenWithSession, requireUser, getBooksForStudent);
   app.get("/api/student/loans", verifyTokenWithSession, requireUser, getStudentLoans);
+  app.post("/api/student/loans", verifyTokenWithSession, requireUser, borrowBook);
+  app.post("/api/student/loans/:id/return", verifyTokenWithSession, requireUser, returnStudentBook);
   app.post("/api/student/loans/:id/renew", verifyTokenWithSession, requireUser, renewLoan);
   app.get("/api/student/reservations", verifyTokenWithSession, requireUser, getStudentReservations);
   app.post("/api/student/reservations", verifyTokenWithSession, requireUser, createReservation);
@@ -107,6 +111,14 @@ export function createServer() {
   app.post("/api/student/feedback", verifyTokenWithSession, requireUser, submitFeedback);
   app.post("/api/student/suggestions", verifyTokenWithSession, requireUser, submitBookSuggestion);
   app.get("/api/student/profile", verifyTokenWithSession, requireUser, getStudentProfile);
+
+  // Search routes
+  app.get("/api/search", searchBooks);
+  app.get("/api/search/suggestions", getSearchSuggestions);
+
+  // Book routes
+  app.get("/api/books", getAllBooks);
+  app.get("/api/books/:id", getBookDetails);
 
   return app;
 }

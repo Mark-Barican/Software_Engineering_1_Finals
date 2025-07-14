@@ -228,16 +228,38 @@ export async function issueBook(req: Request, res: Response) {
       return res.status(400).json({ message: 'User ID and Book ID are required' });
     }
 
-    // Check if user exists
-    const user = await User.findById(userId);
+    // Find user by userId (custom ID), email, or MongoDB ObjectId
+    let user;
+    if (mongoose.Types.ObjectId.isValid(userId)) {
+      user = await User.findById(userId);
+    } else {
+      user = await User.findOne({ 
+        $or: [
+          { userId: userId },
+          { email: userId }
+        ]
+      });
+    }
+    
     if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+      return res.status(404).json({ message: 'User not found. Please check the Student ID.' });
     }
 
-    // Check if book exists and is available
-    const book = await Book.findById(bookId);
+    // Find book by ISBN, title, or MongoDB ObjectId
+    let book;
+    if (mongoose.Types.ObjectId.isValid(bookId)) {
+      book = await Book.findById(bookId);
+    } else {
+      book = await Book.findOne({ 
+        $or: [
+          { isbn: bookId },
+          { title: { $regex: bookId, $options: 'i' } }
+        ]
+      });
+    }
+    
     if (!book) {
-      return res.status(404).json({ message: 'Book not found' });
+      return res.status(404).json({ message: 'Book not found. Please check the Book ID/ISBN.' });
     }
 
     if (book.availableCopies <= 0) {
@@ -246,8 +268,8 @@ export async function issueBook(req: Request, res: Response) {
 
     // Check if user already has this book
     const existingLoan = await Loan.findOne({
-      userId,
-      bookId,
+      userId: user._id,
+      bookId: book._id,
       status: 'active'
     });
 
@@ -255,22 +277,61 @@ export async function issueBook(req: Request, res: Response) {
       return res.status(400).json({ message: 'User already has this book on loan' });
     }
 
+    // Check user's borrowing limit
+    const currentLoans = await Loan.countDocuments({ 
+      userId: user._id, 
+      status: 'active' 
+    });
+
+    const borrowingLimit = 5; // Standard limit for students
+    if (currentLoans >= borrowingLimit) {
+      return res.status(400).json({ 
+        message: `User has reached their borrowing limit of ${borrowingLimit} books. Please return some books before borrowing more.` 
+      });
+    }
+
+    // Check for outstanding fines
+    const outstandingFines = await Fine.aggregate([
+      { $match: { userId: user._id, status: 'pending' } },
+      { $group: { _id: null, total: { $sum: '$amount' } } }
+    ]);
+
+    const totalFines = outstandingFines[0]?.total || 0;
+    if (totalFines > 0) {
+      return res.status(400).json({ 
+        message: `User has outstanding fines of $${totalFines.toFixed(2)}. Please pay fines before borrowing books.` 
+      });
+    }
+
+    // Check for overdue books
+    const overdueBooks = await Loan.countDocuments({
+      userId: user._id,
+      status: 'active',
+      dueDate: { $lt: new Date() }
+    });
+
+    if (overdueBooks > 0) {
+      return res.status(400).json({ 
+        message: `User has ${overdueBooks} overdue book(s). Please return overdue books before borrowing new ones.` 
+      });
+    }
+
     // Create loan record
     const loan = await Loan.create({
-      userId,
-      bookId,
+      userId: user._id,
+      bookId: book._id,
       issuedBy: librarian._id,
       dueDate: calculateDueDate(loanDays)
     });
 
     // Update book availability
-    await Book.findByIdAndUpdate(bookId, {
+    await Book.findByIdAndUpdate(book._id, {
       $inc: { availableCopies: -1 }
     });
 
     // Populate loan with user and book details
     const populatedLoan = await Loan.findById(loan._id)
-      .populate('userId', 'name email')
+      .populate('userId', 'name email userId')
       .populate('bookId', 'title author isbn');
 
     res.status(201).json({

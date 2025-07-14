@@ -452,6 +452,172 @@ export async function getStudentProfile(req: Request, res: Response) {
   }
 }
 
+// POST /api/student/loans - Student borrows a book
+export async function borrowBook(req: Request, res: Response) {
+  try {
+    const userId = (req as any).userId;
+    const { bookId, loanDays = 14 } = req.body;
+
+    if (!bookId) {
+      return res.status(400).json({ message: 'Book ID is required' });
+    }
+
+    // Check if user exists and is active
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    if (user.accountStatus !== 'active') {
+      return res.status(400).json({ message: 'Account is not active. Please contact the library.' });
+    }
+
+    // Check if book exists
+    const book = await Book.findById(bookId);
+    if (!book) {
+      return res.status(404).json({ message: 'Book not found' });
+    }
+
+    // Check if book is available
+    if (book.availableCopies <= 0) {
+      return res.status(400).json({ message: 'Book is not available for loan. Please reserve it instead.' });
+    }
+
+    // Check if user already has this book on loan
+    const existingLoan = await Loan.findOne({
+      userId,
+      bookId,
+      status: 'active'
+    });
+
+    if (existingLoan) {
+      return res.status(400).json({ message: 'You already have this book on loan' });
+    }
+
+    // Check user's borrowing limit
+    const currentLoans = await Loan.countDocuments({ 
+      userId, 
+      status: 'active' 
+    });
+
+    const borrowingLimit = 5; // Standard limit for students
+    if (currentLoans >= borrowingLimit) {
+      return res.status(400).json({ 
+        message: `You have reached your borrowing limit of ${borrowingLimit} books. Please return some books before borrowing more.` 
+      });
+    }
+
+    // Check for outstanding fines
+    const outstandingFines = await Fine.aggregate([
+      { $match: { userId: new mongoose.Types.ObjectId(userId), status: 'pending' } },
+      { $group: { _id: null, total: { $sum: '$amount' } } }
+    ]);
+
+    const totalFines = outstandingFines[0]?.total || 0;
+    if (totalFines > 0) {
+      return res.status(400).json({ 
+        message: `You have outstanding fines of $${totalFines.toFixed(2)}. Please pay your fines before borrowing books.` 
+      });
+    }
+
+    // Check for overdue books
+    const overdueBooks = await Loan.countDocuments({
+      userId,
+      status: 'active',
+      dueDate: { $lt: new Date() }
+    });
+
+    if (overdueBooks > 0) {
+      return res.status(400).json({ 
+        message: `You have ${overdueBooks} overdue book(s). Please return overdue books before borrowing new ones.` 
+      });
+    }
+
+    // Create loan record
+    const dueDate = new Date();
+    dueDate.setDate(dueDate.getDate() + loanDays);
+
+    const loan = await Loan.create({
+      userId,
+      bookId,
+      issuedBy: userId, // Self-service loan
+      dueDate,
+      status: 'active'
+    });
+
+    // Update book availability
+    await Book.findByIdAndUpdate(bookId, {
+      $inc: { availableCopies: -1 }
+    });
+
+    // Populate loan with book details
+    const populatedLoan = await Loan.findById(loan._id)
+      .populate('bookId', 'title author isbn genre');
+
+    res.status(201).json({
+      message: 'Book borrowed successfully',
+      loan: populatedLoan,
+      dueDate: dueDate.toISOString()
+    });
+  } catch (error) {
+    console.error('Borrow book error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+}
+
+// POST /api/student/loans/:id/return - Student returns a book
+export async function returnStudentBook(req: Request, res: Response) {
+  try {
+    const userId = (req as any).userId;
+    const { id } = req.params;
+
+    const loan = await Loan.findOne({ _id: id, userId, status: 'active' });
+    
+    if (!loan) {
+      return res.status(404).json({ message: 'Loan not found or not active' });
+    }
+
+    const returnDate = new Date();
+    let fine = 0;
+
+    // Calculate overdue fine if applicable
+    if (returnDate > loan.dueDate) {
+      const daysOverdue = Math.ceil((returnDate.getTime() - loan.dueDate.getTime()) / (1000 * 60 * 60 * 24));
+      fine = daysOverdue * 0.50; // $0.50 per day overdue
+    }
+
+    // Update loan record
+    loan.returnDate = returnDate;
+    loan.status = 'returned';
+    loan.fineAmount = fine;
+    await loan.save();
+
+    // Update book availability
+    await Book.findByIdAndUpdate(loan.bookId, {
+      $inc: { availableCopies: 1 }
+    });
+
+    // Create fine record if applicable
+    if (fine > 0) {
+      await Fine.create({
+        userId: loan.userId,
+        loanId: loan._id,
+        amount: fine,
+        reason: 'overdue',
+        description: `Overdue fine for book return`
+      });
+    }
+
+    res.json({
+      message: 'Book returned successfully',
+      fine: fine > 0 ? fine : null
+    });
+  } catch (error) {
+    console.error('Return book error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+}
+
 // Helper function to create notifications for students
 async function createNotificationForUser(
   userId: string, 

@@ -134,6 +134,7 @@ export async function getUsers(req: Request, res: Response) {
           createdAt: user.createdAt,
           lastLogin: user.lastLogin,
           accountStatus: user.accountStatus || 'active',
+          profilePicture: user.profilePicture,
           ...additionalInfo
         };
       })
