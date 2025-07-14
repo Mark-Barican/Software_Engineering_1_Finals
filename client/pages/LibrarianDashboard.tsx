@@ -4,8 +4,18 @@ import { useAuth } from "../hooks/use-auth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { 
+  DropdownMenu, 
+  DropdownMenuContent, 
+  DropdownMenuItem, 
+  DropdownMenuTrigger,
+  DropdownMenuCheckboxItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator
+} from "@/components/ui/dropdown-menu";
 import { 
   BookOpen, 
   Users, 
@@ -27,7 +37,15 @@ import {
   TrendingUp,
   UserCheck,
   BookPlus,
-  ArrowLeft
+  ArrowLeft,
+  Filter,
+  AlertCircle,
+  XCircle as OutOfStock,
+  Tag,
+  Layers,
+  ChevronDown,
+  Info,
+  BookUser
 } from "lucide-react";
 
 interface DashboardStats {
@@ -103,6 +121,19 @@ export default function LibrarianDashboard() {
     bookId: "",
     loanDays: 14
   });
+  
+  // Form validation state
+  const [formErrors, setFormErrors] = useState({
+    userId: "",
+    bookId: "",
+    loanDays: ""
+  });
+  
+  // Filter states
+  const [statusFilters, setStatusFilters] = useState<Set<string>>(new Set(['available', 'low-stock', 'out-of-stock']));
+  const [genreFilters, setGenreFilters] = useState<Set<string>>(new Set());
+  const [availabilityFilters, setAvailabilityFilters] = useState<Set<string>>(new Set(['has-copies', 'all-on-loan']));
+  const [allGenres, setAllGenres] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     // Check if user is librarian or admin
@@ -159,6 +190,16 @@ export default function LibrarianDashboard() {
       if (response.ok) {
         const data = await response.json();
         setBooks(data.books);
+        
+        // Extract unique genres for filtering
+        const genreArray: string[] = data.books.map((book: Book) => book.genre).filter((genre): genre is string => Boolean(genre));
+        const genres = new Set(genreArray);
+        setAllGenres(genres);
+        
+        // Initialize genre filters to show all genres
+        if (genreFilters.size === 0) {
+          setGenreFilters(new Set(genreArray));
+        }
       }
     } catch (error) {
       console.error('Error loading books:', error);
@@ -215,7 +256,34 @@ export default function LibrarianDashboard() {
     }
   };
 
+  const validateForm = () => {
+    const errors = {
+      userId: "",
+      bookId: "",
+      loanDays: ""
+    };
+    
+    if (!issueBookForm.userId.trim()) {
+      errors.userId = "Student ID is required";
+    }
+    
+    if (!issueBookForm.bookId.trim()) {
+      errors.bookId = "Book ID is required";
+    }
+    
+    if (!issueBookForm.loanDays || issueBookForm.loanDays < 1 || issueBookForm.loanDays > 30) {
+      errors.loanDays = "Loan period must be between 1 and 30 days";
+    }
+    
+    setFormErrors(errors);
+    return !errors.userId && !errors.bookId && !errors.loanDays;
+  };
+
   const issueBook = async () => {
+    if (!validateForm()) {
+      return;
+    }
+    
     try {
       const token = localStorage.getItem('token') || sessionStorage.getItem('token');
       const response = await fetch('/api/librarian/loans/issue', {
@@ -230,6 +298,7 @@ export default function LibrarianDashboard() {
       if (response.ok) {
         alert('Book issued successfully!');
         setIssueBookForm({ userId: "", bookId: "", loanDays: 14 });
+        setFormErrors({ userId: "", bookId: "", loanDays: "" });
         loadLoans();
         loadBooks();
         loadDashboardData();
@@ -275,6 +344,73 @@ export default function LibrarianDashboard() {
       alert('Error returning book');
     }
   };
+
+  // Filter functions
+  const toggleStatusFilter = (status: string) => {
+    setStatusFilters(prev => {
+      const newFilters = new Set(prev);
+      if (newFilters.has(status)) {
+        newFilters.delete(status);
+      } else {
+        newFilters.add(status);
+      }
+      return newFilters;
+    });
+  };
+
+  const toggleGenreFilter = (genre: string) => {
+    setGenreFilters(prev => {
+      const newFilters = new Set(prev);
+      if (newFilters.has(genre)) {
+        newFilters.delete(genre);
+      } else {
+        newFilters.add(genre);
+      }
+      return newFilters;
+    });
+  };
+
+  const toggleAvailabilityFilter = (availability: string) => {
+    setAvailabilityFilters(prev => {
+      const newFilters = new Set(prev);
+      if (newFilters.has(availability)) {
+        newFilters.delete(availability);
+      } else {
+        newFilters.add(availability);
+      }
+      return newFilters;
+    });
+  };
+
+  // Apply filters in stages for dynamic badge counts
+  
+  // Step 1: Apply genre filter only (for availability badge counts)
+  const booksFilteredByGenre = books.filter(book => {
+    // Genre filter
+    if (genreFilters.size > 0 && !genreFilters.has(book.genre)) return false;
+    return true;
+  });
+
+  // Step 2: Apply genre and availability filters (for status badge counts)
+  const booksFilteredByGenreAndAvailability = booksFilteredByGenre.filter(book => {
+    // Availability filter
+    if (availabilityFilters.size > 0) {
+      const hasCopies = book.availableCopies > 0;
+      const allOnLoan = book.availableCopies === 0 && book.currentLoans > 0;
+      
+      if (!((availabilityFilters.has('has-copies') && hasCopies) || 
+            (availabilityFilters.has('all-on-loan') && allOnLoan))) {
+        return false;
+      }
+    }
+    
+    return true;
+  });
+
+  // Step 3: Apply status filter to get final filtered books
+  const filteredBooks = booksFilteredByGenreAndAvailability.filter(book => {
+    return statusFilters.has(book.status);
+  });
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -485,27 +621,202 @@ export default function LibrarianDashboard() {
 
           {/* Books Tab */}
           <TabsContent value="books" className="space-y-6">
+            <div className="flex justify-between items-center">
+              <div>
+                <h2 className="text-2xl font-semibold text-gray-900">Book Management</h2>
+                <p className="text-gray-600">
+                  Manage library inventory ({filteredBooks.length} of {books.length} books shown)
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Search books..."
+                  value={bookSearch}
+                  onChange={(e) => setBookSearch(e.target.value)}
+                  className="w-64"
+                />
+                <Button onClick={loadBooks}>Search</Button>
+              </div>
+            </div>
+
+            {/* Enhanced Filter Bar */}
             <Card>
-              <CardHeader>
-                <div className="flex justify-between items-center">
-                  <CardTitle className="flex items-center gap-2">
-                    <BookOpen className="w-5 h-5" />
-                    Book Management
-                  </CardTitle>
-                  <div className="flex gap-2">
-                    <Input
-                      placeholder="Search books..."
-                      value={bookSearch}
-                      onChange={(e) => setBookSearch(e.target.value)}
-                      className="w-64"
-                    />
-                    <Button onClick={loadBooks}>Search</Button>
+              <CardContent className="py-4">
+                <div className="space-y-4">
+                  {/* Status Filters */}
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2">
+                      <Filter className="w-4 h-4 text-gray-500" />
+                      <span className="text-sm font-medium text-gray-700">Status:</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant={statusFilters.has('available') ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => toggleStatusFilter('available')}
+                        className="flex items-center gap-1"
+                      >
+                        <CheckCircle className="w-3 h-3" />
+                        Available
+                        <Badge variant="secondary" className="ml-1 text-xs">
+                          {booksFilteredByGenreAndAvailability.filter(b => b.status === 'available').length}
+                        </Badge>
+                      </Button>
+                      <Button
+                        variant={statusFilters.has('low-stock') ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => toggleStatusFilter('low-stock')}
+                        className="flex items-center gap-1"
+                      >
+                        <AlertCircle className="w-3 h-3" />
+                        Low Stock
+                        <Badge variant="secondary" className="ml-1 text-xs">
+                          {booksFilteredByGenreAndAvailability.filter(b => b.status === 'low-stock').length}
+                        </Badge>
+                      </Button>
+                      <Button
+                        variant={statusFilters.has('out-of-stock') ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => toggleStatusFilter('out-of-stock')}
+                        className="flex items-center gap-1"
+                      >
+                        <OutOfStock className="w-3 h-3" />
+                        Out of Stock
+                        <Badge variant="secondary" className="ml-1 text-xs">
+                          {booksFilteredByGenreAndAvailability.filter(b => b.status === 'out-of-stock').length}
+                        </Badge>
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Genre Filters */}
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2">
+                      <Tag className="w-4 h-4 text-gray-500" />
+                      <span className="text-sm font-medium text-gray-700">Genre:</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="outline" className="flex items-center gap-2 min-w-[200px] justify-between">
+                            <div className="flex items-center gap-2">
+                              <Layers className="w-4 h-4" />
+                              <span>
+                                {genreFilters.size === 0 ? 'No genres selected' : 
+                                 genreFilters.size === allGenres.size ? 'All genres' :
+                                 genreFilters.size === 1 ? Array.from(genreFilters)[0] :
+                                 `${genreFilters.size} genres selected`}
+                              </span>
+                            </div>
+                            <ChevronDown className="w-4 h-4 opacity-50" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent className="w-56 max-h-72 overflow-y-auto">
+                          <DropdownMenuLabel>Select Genres</DropdownMenuLabel>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuCheckboxItem
+                            checked={genreFilters.size === allGenres.size}
+                            onCheckedChange={(checked) => {
+                              if (checked) {
+                                setGenreFilters(new Set(allGenres));
+                              } else {
+                                setGenreFilters(new Set());
+                              }
+                            }}
+                            className="font-medium"
+                          >
+                            All Genres
+                            <Badge variant="secondary" className="ml-auto">
+                              {books.length}
+                            </Badge>
+                          </DropdownMenuCheckboxItem>
+                          <DropdownMenuSeparator />
+                          {Array.from(allGenres).sort().map((genre) => (
+                            <DropdownMenuCheckboxItem
+                              key={genre}
+                              checked={genreFilters.has(genre)}
+                              onCheckedChange={() => toggleGenreFilter(genre)}
+                            >
+                              {genre}
+                              <Badge variant="secondary" className="ml-auto">
+                                {books.filter(b => b.genre === genre).length}
+                              </Badge>
+                            </DropdownMenuCheckboxItem>
+                          ))}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  </div>
+
+                  {/* Availability Filters */}
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2">
+                      <Package className="w-4 h-4 text-gray-500" />
+                      <span className="text-sm font-medium text-gray-700">Availability:</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant={availabilityFilters.has('has-copies') ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => toggleAvailabilityFilter('has-copies')}
+                        className="flex items-center gap-1"
+                      >
+                        <CheckCircle className="w-3 h-3" />
+                        Has Copies
+                        <Badge variant="secondary" className="ml-1 text-xs">
+                          {booksFilteredByGenre.filter(b => b.availableCopies > 0).length}
+                        </Badge>
+                      </Button>
+                      <Button
+                        variant={availabilityFilters.has('all-on-loan') ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => toggleAvailabilityFilter('all-on-loan')}
+                        className="flex items-center gap-1"
+                      >
+                        <UserCheck className="w-3 h-3" />
+                        All On Loan
+                        <Badge variant="secondary" className="ml-1 text-xs">
+                          {booksFilteredByGenre.filter(b => b.availableCopies === 0 && b.currentLoans > 0).length}
+                        </Badge>
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Filter Controls */}
+                  <div className="flex items-center gap-2 pt-2 border-t">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setStatusFilters(new Set(['available', 'low-stock', 'out-of-stock']));
+                        setGenreFilters(new Set(Array.from(allGenres)));
+                        setAvailabilityFilters(new Set(['has-copies', 'all-on-loan']));
+                      }}
+                      className="text-xs"
+                    >
+                      Show All
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setStatusFilters(new Set());
+                        setGenreFilters(new Set());
+                        setAvailabilityFilters(new Set());
+                      }}
+                      className="text-xs"
+                    >
+                      Clear All Filters
+                    </Button>
                   </div>
                 </div>
-              </CardHeader>
-              <CardContent>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="p-6">
                 <div className="space-y-4">
-                  {books.map((book) => (
+                  {filteredBooks.map((book) => (
                     <div key={book.id} className="flex items-center justify-between p-4 border rounded-lg">
                       <div className="flex items-center gap-4">
                         <BookOpen className="w-8 h-8 text-gray-400" />
@@ -534,6 +845,38 @@ export default function LibrarianDashboard() {
                     </div>
                   ))}
                 </div>
+
+                {/* Empty State */}
+                {filteredBooks.length === 0 && books.length > 0 && (
+                  <div className="py-16 text-center">
+                    <Filter className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">No books match your filters</h3>
+                    <p className="text-gray-600 mb-6">Try adjusting your filters to see more books in the library.</p>
+                    <Button 
+                      variant="outline" 
+                      onClick={() => {
+                        setStatusFilters(new Set(['available', 'low-stock', 'out-of-stock']));
+                        setGenreFilters(new Set(Array.from(allGenres)));
+                        setAvailabilityFilters(new Set(['has-copies', 'all-on-loan']));
+                      }}
+                      className="flex items-center gap-2"
+                    >
+                      <RefreshCw className="w-4 h-4" />
+                      Reset All Filters
+                    </Button>
+                  </div>
+                )}
+                {books.length === 0 && (
+                  <div className="py-16 text-center">
+                    <BookOpen className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">No books found</h3>
+                    <p className="text-gray-600 mb-6">Try adjusting your search query or load more books.</p>
+                    <Button onClick={loadBooks} className="flex items-center gap-2">
+                      <RefreshCw className="w-4 h-4" />
+                      Reload Books
+                    </Button>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -545,28 +888,117 @@ export default function LibrarianDashboard() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <BookPlus className="w-5 h-5" />
-                  Issue New Book
+                  Issue New Book to Student
                 </CardTitle>
+                <CardDescription>
+                  Complete all required fields to issue a book to a student. All fields are mandatory.
+                </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  <Input
-                    placeholder="User ID"
-                    value={issueBookForm.userId}
-                    onChange={(e) => setIssueBookForm({...issueBookForm, userId: e.target.value})}
-                  />
-                  <Input
-                    placeholder="Book ID"
-                    value={issueBookForm.bookId}
-                    onChange={(e) => setIssueBookForm({...issueBookForm, bookId: e.target.value})}
-                  />
-                  <Input
-                    type="number"
-                    placeholder="Loan Days"
-                    value={issueBookForm.loanDays}
-                    onChange={(e) => setIssueBookForm({...issueBookForm, loanDays: parseInt(e.target.value)})}
-                  />
-                  <Button onClick={issueBook}>Issue Book</Button>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {/* Student ID Field */}
+                  <div className="space-y-2">
+                    <Label htmlFor="userId" className="text-sm font-medium flex items-center gap-1">
+                      <BookUser className="w-4 h-4" />
+                      Student ID *
+                    </Label>
+                    <Input
+                      id="userId"
+                      placeholder="e.g., 2021-12345, STU001"
+                      value={issueBookForm.userId}
+                      onChange={(e) => {
+                        setIssueBookForm({...issueBookForm, userId: e.target.value});
+                        if (formErrors.userId) setFormErrors({...formErrors, userId: ""});
+                      }}
+                      className={formErrors.userId ? "border-red-500" : ""}
+                    />
+                    {formErrors.userId && (
+                      <p className="text-sm text-red-500 flex items-center gap-1">
+                        <AlertTriangle className="w-3 h-3" />
+                        {formErrors.userId}
+                      </p>
+                    )}
+                    <p className="text-xs text-gray-500 flex items-center gap-1">
+                      <Info className="w-3 h-3" />
+                      Enter the student's unique ID number
+                    </p>
+                  </div>
+
+                  {/* Book ID Field */}
+                  <div className="space-y-2">
+                    <Label htmlFor="bookId" className="text-sm font-medium flex items-center gap-1">
+                      <BookOpen className="w-4 h-4" />
+                      Book ID *
+                    </Label>
+                    <Input
+                      id="bookId"
+                      placeholder="e.g., BK001, ISBN-123"
+                      value={issueBookForm.bookId}
+                      onChange={(e) => {
+                        setIssueBookForm({...issueBookForm, bookId: e.target.value});
+                        if (formErrors.bookId) setFormErrors({...formErrors, bookId: ""});
+                      }}
+                      className={formErrors.bookId ? "border-red-500" : ""}
+                    />
+                    {formErrors.bookId && (
+                      <p className="text-sm text-red-500 flex items-center gap-1">
+                        <AlertTriangle className="w-3 h-3" />
+                        {formErrors.bookId}
+                      </p>
+                    )}
+                    <p className="text-xs text-gray-500 flex items-center gap-1">
+                      <Info className="w-3 h-3" />
+                      Enter the book's unique ID or ISBN
+                    </p>
+                  </div>
+
+                  {/* Loan Period Field */}
+                  <div className="space-y-2">
+                    <Label htmlFor="loanDays" className="text-sm font-medium flex items-center gap-1">
+                      <Clock className="w-4 h-4" />
+                      Loan Period (Days) *
+                    </Label>
+                    <Input
+                      id="loanDays"
+                      type="number"
+                      min="1"
+                      max="30"
+                      placeholder="14"
+                      value={issueBookForm.loanDays}
+                      onChange={(e) => {
+                        setIssueBookForm({...issueBookForm, loanDays: parseInt(e.target.value) || 14});
+                        if (formErrors.loanDays) setFormErrors({...formErrors, loanDays: ""});
+                      }}
+                      className={formErrors.loanDays ? "border-red-500" : ""}
+                    />
+                    {formErrors.loanDays && (
+                      <p className="text-sm text-red-500 flex items-center gap-1">
+                        <AlertTriangle className="w-3 h-3" />
+                        {formErrors.loanDays}
+                      </p>
+                    )}
+                    <p className="text-xs text-gray-500 flex items-center gap-1">
+                      <Info className="w-3 h-3" />
+                      Standard: 14 days (1-30 days allowed)
+                    </p>
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex justify-end gap-3 mt-6 pt-4 border-t">
+                  <Button 
+                    variant="outline" 
+                    onClick={() => {
+                      setIssueBookForm({ userId: "", bookId: "", loanDays: 14 });
+                      setFormErrors({ userId: "", bookId: "", loanDays: "" });
+                    }}
+                  >
+                    Clear Form
+                  </Button>
+                  <Button onClick={issueBook} className="flex items-center gap-2">
+                    <BookPlus className="w-4 h-4" />
+                    Issue Book to Student
+                  </Button>
                 </div>
               </CardContent>
             </Card>

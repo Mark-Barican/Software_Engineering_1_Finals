@@ -25,7 +25,10 @@ import {
   XCircle,
   TrendingUp,
   Clock,
-  Database
+  Database,
+  Package,
+  AlertCircle,
+  XCircle as OutOfStock
 } from "lucide-react";
 
 interface DashboardStats {
@@ -84,6 +87,8 @@ export default function AdminDashboard() {
   const [users, setUsers] = useState<User[]>([]);
   const [books, setBooks] = useState<Book[]>([]);
   const [loading, setLoading] = useState(true);
+  const [roleFilters, setRoleFilters] = useState<Set<string>>(new Set(['admin', 'librarian', 'user']));
+  const [statusFilters, setStatusFilters] = useState<Set<string>>(new Set(['available', 'low-stock', 'out-of-stock']));
 
   useEffect(() => {
     // Check if user is admin
@@ -221,6 +226,33 @@ export default function AdminDashboard() {
       alert('An error occurred while processing the request');
     }
   };
+
+  const toggleRoleFilter = (role: string) => {
+    setRoleFilters(prev => {
+      const newFilters = new Set(prev);
+      if (newFilters.has(role)) {
+        newFilters.delete(role);
+      } else {
+        newFilters.add(role);
+      }
+      return newFilters;
+    });
+  };
+
+  const toggleStatusFilter = (status: string) => {
+    setStatusFilters(prev => {
+      const newFilters = new Set(prev);
+      if (newFilters.has(status)) {
+        newFilters.delete(status);
+      } else {
+        newFilters.add(status);
+      }
+      return newFilters;
+    });
+  };
+
+  const filteredUsers = users.filter(user => roleFilters.has(user.role));
+  const filteredBooks = books.filter(book => statusFilters.has(book.status));
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -471,204 +503,320 @@ export default function AdminDashboard() {
 
           {/* Users Tab */}
           <TabsContent value="users" className="space-y-6">
+            <div className="flex justify-between items-center">
+              <div>
+                <h2 className="text-2xl font-semibold text-gray-900">User Management</h2>
+                <p className="text-gray-600">
+                  Manage all users in the system ({filteredUsers.length} of {users.length} users shown)
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <Button variant="outline" className="flex items-center gap-2">
+                  <Search className="w-4 h-4" />
+                  Search Users
+                </Button>
+                <Button className="flex items-center gap-2">
+                  <Plus className="w-4 h-4" />
+                  Add New User
+                </Button>
+              </div>
+            </div>
+
+            {/* Filter Bar */}
             <Card>
-              <CardHeader>
-                <div className="flex justify-between items-center">
-                  <CardTitle className="flex items-center gap-2">
-                    <Users className="w-5 h-5" />
-                    User Management ({users.length} total)
-                  </CardTitle>
-                  <Button className="flex items-center gap-2">
-                    <Plus className="w-4 h-4" />
-                    Add New User
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-6">
-                  {users.map((user) => (
-                    <Card key={user.id} className="p-6">
-                      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                        {/* Basic Information */}
-                        <div className="space-y-4">
-                          <div className="flex items-center gap-3">
-                            <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center">
-                              <Users className="w-6 h-6 text-gray-600" />
-                            </div>
-                            <div>
-                              <div className="flex items-center gap-2">
-                                <h3 className="font-semibold text-lg">{user.name}</h3>
-                                <Badge className={getRoleColor(user.role)}>
-                                  {user.role}
-                                </Badge>
-                                <Badge className={getStatusColor(user.accountStatus)}>
-                                  {user.accountStatus}
-                                </Badge>
-                              </div>
-                              <p className="text-sm text-gray-600">{user.email}</p>
-                            </div>
-                          </div>
-                          
-                          <div className="space-y-2">
-                            <div className="flex justify-between">
-                              <span className="text-sm text-gray-600">User ID:</span>
-                              <span className="text-sm font-medium">{user.userId}</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-sm text-gray-600">Contact:</span>
-                              <span className="text-sm font-medium">{user.contactNumber}</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-sm text-gray-600">
-                                {user.role === 'user' ? 'Course/Year:' : 'Department:'}
-                              </span>
-                              <span className="text-sm font-medium">{user.department}</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-sm text-gray-600">Date Joined:</span>
-                              <span className="text-sm font-medium">
-                                {new Date(user.createdAt).toLocaleDateString()}
-                              </span>
-                            </div>
-                            {user.lastLogin && (
-                              <div className="flex justify-between">
-                                <span className="text-sm text-gray-600">Last Login:</span>
-                                <span className="text-sm font-medium">
-                                  {new Date(user.lastLogin).toLocaleDateString()}
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Student Additional Information */}
-                        {user.role === 'user' && (
-                          <div className="space-y-4">
-                            <h4 className="font-medium text-gray-900">Student Information</h4>
-                            <div className="grid grid-cols-2 gap-4">
-                              <div className="bg-blue-50 p-3 rounded-lg">
-                                <div className="text-center">
-                                  <div className="text-2xl font-bold text-blue-600">
-                                    {user.currentBorrowedBooks || 0}
-                                  </div>
-                                  <div className="text-xs text-gray-600">Current Loans</div>
-                                </div>
-                              </div>
-                              <div className="bg-green-50 p-3 rounded-lg">
-                                <div className="text-center">
-                                  <div className="text-2xl font-bold text-green-600">
-                                    {user.totalBooksBorrowed || 0}
-                                  </div>
-                                  <div className="text-xs text-gray-600">Total Borrowed</div>
-                                </div>
-                              </div>
-                              <div className="bg-red-50 p-3 rounded-lg">
-                                <div className="text-center">
-                                  <div className="text-2xl font-bold text-red-600">
-                                    ${(user.outstandingFines || 0).toFixed(2)}
-                                  </div>
-                                  <div className="text-xs text-gray-600">Outstanding Fines</div>
-                                </div>
-                              </div>
-                              <div className="bg-purple-50 p-3 rounded-lg">
-                                <div className="text-center">
-                                  <div className="text-2xl font-bold text-purple-600">
-                                    {user.numberOfReservations || 0}
-                                  </div>
-                                  <div className="text-xs text-gray-600">Reservations</div>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Staff Information */}
-                        {(user.role === 'librarian' || user.role === 'admin') && (
-                          <div className="space-y-4">
-                            <h4 className="font-medium text-gray-900">
-                              {user.role === 'admin' ? 'Administrator' : 'Librarian'} Information
-                            </h4>
-                            <div className="bg-gray-50 p-4 rounded-lg">
-                              <div className="space-y-2">
-                                <div className="flex justify-between">
-                                  <span className="text-sm text-gray-600">Position:</span>
-                                  <span className="text-sm font-medium capitalize">{user.role}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                  <span className="text-sm text-gray-600">
-                                    {user.role === 'admin' ? 'Division:' : 'Assigned Section:'}
-                                  </span>
-                                  <span className="text-sm font-medium">{user.department}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                  <span className="text-sm text-gray-600">Access Level:</span>
-                                  <span className="text-sm font-medium">
-                                    {user.role === 'admin' ? 'Full System Access' : 'Library Operations'}
-                                  </span>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Actions */}
-                        <div className="flex flex-col gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleUserAction('view', user.id)}
-                            className="w-full"
-                          >
-                            <Eye className="w-4 h-4 mr-2" />
-                            View Details
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleUserAction('edit', user.id)}
-                            className="w-full"
-                          >
-                            <Edit className="w-4 h-4 mr-2" />
-                            Edit User
-                          </Button>
-                          {user.role !== 'admin' && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleUserAction('delete', user.id)}
-                              className="w-full text-red-600 hover:text-red-700"
-                            >
-                              <Trash2 className="w-4 h-4 mr-2" />
-                              Delete User
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    </Card>
-                  ))}
+              <CardContent className="py-4">
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2">
+                    <Filter className="w-4 h-4 text-gray-500" />
+                    <span className="text-sm font-medium text-gray-700">Filter by role:</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant={roleFilters.has('admin') ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => toggleRoleFilter('admin')}
+                      className="flex items-center gap-1"
+                    >
+                      <Shield className="w-3 h-3" />
+                      Admin
+                      <Badge variant="secondary" className="ml-1 text-xs">
+                        {users.filter(u => u.role === 'admin').length}
+                      </Badge>
+                    </Button>
+                    <Button
+                      variant={roleFilters.has('librarian') ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => toggleRoleFilter('librarian')}
+                      className="flex items-center gap-1"
+                    >
+                      <Users className="w-3 h-3" />
+                      Librarian
+                      <Badge variant="secondary" className="ml-1 text-xs">
+                        {users.filter(u => u.role === 'librarian').length}
+                      </Badge>
+                    </Button>
+                    <Button
+                      variant={roleFilters.has('user') ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => toggleRoleFilter('user')}
+                      className="flex items-center gap-1"
+                    >
+                      <BookOpen className="w-3 h-3" />
+                      Student
+                      <Badge variant="secondary" className="ml-1 text-xs">
+                        {users.filter(u => u.role === 'user').length}
+                      </Badge>
+                    </Button>
+                  </div>
+                  <div className="flex items-center gap-2 ml-auto">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setRoleFilters(new Set(['admin', 'librarian', 'user']))}
+                      className="text-xs"
+                    >
+                      Show All
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setRoleFilters(new Set())}
+                      className="text-xs"
+                    >
+                      Clear Filters
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>
+
+            {/* User Cards Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+              {filteredUsers.map((user) => (
+                <Card key={user.id} className="hover:shadow-md transition-shadow">
+                  <CardContent className="p-6">
+                    {/* Header */}
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center">
+                          <Users className="w-5 h-5 text-white" />
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-gray-900">{user.name}</h3>
+                          <p className="text-sm text-gray-600">{user.email}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Badges */}
+                    <div className="flex items-center gap-2 mb-4">
+                      <Badge className={getRoleColor(user.role)} variant="secondary">
+                        {user.role === 'user' ? 'Student' : user.role === 'librarian' ? 'Librarian' : 'Admin'}
+                      </Badge>
+                      <Badge className={getStatusColor(user.accountStatus)} variant="outline">
+                        {user.accountStatus}
+                      </Badge>
+                    </div>
+
+                    {/* Key Information */}
+                    <div className="space-y-2 mb-4">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">ID:</span>
+                        <span className="font-medium">{user.userId}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">Department:</span>
+                        <span className="font-medium text-right">{user.department}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">Joined:</span>
+                        <span className="font-medium">{new Date(user.createdAt).toLocaleDateString()}</span>
+                      </div>
+                    </div>
+
+                    {/* Role-specific stats */}
+                    {user.role === 'user' && (
+                      <div className="bg-gray-50 rounded-lg p-3 mb-4">
+                        <div className="grid grid-cols-2 gap-3 text-center">
+                          <div>
+                            <div className="text-lg font-bold text-blue-600">{user.currentBorrowedBooks || 0}</div>
+                            <div className="text-xs text-gray-600">Current Loans</div>
+                          </div>
+                          <div>
+                            <div className="text-lg font-bold text-green-600">{user.totalBooksBorrowed || 0}</div>
+                            <div className="text-xs text-gray-600">Total Borrowed</div>
+                          </div>
+                        </div>
+                        {(user.outstandingFines || 0) > 0 && (
+                          <div className="mt-2 pt-2 border-t text-center">
+                            <div className="text-sm font-semibold text-red-600">
+                              ${(user.outstandingFines || 0).toFixed(2)} in fines
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {(user.role === 'librarian' || user.role === 'admin') && (
+                      <div className="bg-gray-50 rounded-lg p-3 mb-4">
+                        <div className="text-center">
+                          <div className="text-sm font-medium text-gray-900">
+                            {user.role === 'admin' ? 'System Administrator' : 'Library Staff'}
+                          </div>
+                          <div className="text-xs text-gray-600 mt-1">
+                            {user.role === 'admin' ? 'Full Access' : 'Library Operations'}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Action Buttons */}
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleUserAction('edit', user.id)}
+                        className="flex-1"
+                      >
+                        <Edit className="w-4 h-4 mr-2" />
+                        Edit
+                      </Button>
+                      {user.role !== 'admin' && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleUserAction('delete', user.id)}
+                          className="text-red-600 hover:text-red-700 hover:border-red-300"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+
+            {/* Empty State */}
+            {filteredUsers.length === 0 && users.length > 0 && (
+              <Card>
+                <CardContent className="py-16 text-center">
+                  <Filter className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">No users match your filters</h3>
+                  <p className="text-gray-600 mb-6">Try adjusting your role filters to see more users.</p>
+                  <Button 
+                    variant="outline" 
+                    onClick={() => setRoleFilters(new Set(['admin', 'librarian', 'user']))}
+                    className="flex items-center gap-2"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                    Reset Filters
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+            {users.length === 0 && (
+              <Card>
+                <CardContent className="py-16 text-center">
+                  <Users className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">No users found</h3>
+                  <p className="text-gray-600 mb-6">Get started by adding your first user to the system.</p>
+                  <Button className="flex items-center gap-2">
+                    <Plus className="w-4 h-4" />
+                    Add First User
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
 
           {/* Books Tab */}
           <TabsContent value="books" className="space-y-6">
+            <div className="flex justify-between items-center">
+              <div>
+                <h2 className="text-2xl font-semibold text-gray-900">Book Management</h2>
+                <p className="text-gray-600">
+                  Manage library inventory ({filteredBooks.length} of {books.length} books shown)
+                </p>
+              </div>
+              <Button className="flex items-center gap-2">
+                <Plus className="w-4 h-4" />
+                Add New Book
+              </Button>
+            </div>
+
+            {/* Filter Bar */}
             <Card>
-              <CardHeader>
-                <div className="flex justify-between items-center">
-                  <CardTitle className="flex items-center gap-2">
-                    <BookOpen className="w-5 h-5" />
-                    Book Management
-                  </CardTitle>
-                  <Button className="flex items-center gap-2">
-                    <Plus className="w-4 h-4" />
-                    Add New Book
-                  </Button>
+              <CardContent className="py-4">
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2">
+                    <Filter className="w-4 h-4 text-gray-500" />
+                    <span className="text-sm font-medium text-gray-700">Filter by status:</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant={statusFilters.has('available') ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => toggleStatusFilter('available')}
+                      className="flex items-center gap-1"
+                    >
+                      <CheckCircle className="w-3 h-3" />
+                      Available
+                      <Badge variant="secondary" className="ml-1 text-xs">
+                        {books.filter(b => b.status === 'available').length}
+                      </Badge>
+                    </Button>
+                    <Button
+                      variant={statusFilters.has('low-stock') ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => toggleStatusFilter('low-stock')}
+                      className="flex items-center gap-1"
+                    >
+                      <AlertCircle className="w-3 h-3" />
+                      Low Stock
+                      <Badge variant="secondary" className="ml-1 text-xs">
+                        {books.filter(b => b.status === 'low-stock').length}
+                      </Badge>
+                    </Button>
+                    <Button
+                      variant={statusFilters.has('out-of-stock') ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => toggleStatusFilter('out-of-stock')}
+                      className="flex items-center gap-1"
+                    >
+                      <OutOfStock className="w-3 h-3" />
+                      Out of Stock
+                      <Badge variant="secondary" className="ml-1 text-xs">
+                        {books.filter(b => b.status === 'out-of-stock').length}
+                      </Badge>
+                    </Button>
+                  </div>
+                  <div className="flex items-center gap-2 ml-auto">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setStatusFilters(new Set(['available', 'low-stock', 'out-of-stock']))}
+                      className="text-xs"
+                    >
+                      Show All
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setStatusFilters(new Set())}
+                      className="text-xs"
+                    >
+                      Clear Filters
+                    </Button>
+                  </div>
                 </div>
-              </CardHeader>
-              <CardContent>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="p-6">
                 <div className="space-y-4">
-                  {books.map((book) => (
+                  {filteredBooks.map((book) => (
                     <div key={book.id} className="flex items-center justify-between p-4 border rounded-lg">
                       <div className="flex items-center gap-4">
                         <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center">
@@ -713,6 +861,34 @@ export default function AdminDashboard() {
                     </div>
                   ))}
                 </div>
+
+                {/* Empty State */}
+                {filteredBooks.length === 0 && books.length > 0 && (
+                  <div className="py-16 text-center">
+                    <Filter className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">No books match your filters</h3>
+                    <p className="text-gray-600 mb-6">Try adjusting your status filters to see more books.</p>
+                    <Button 
+                      variant="outline" 
+                      onClick={() => setStatusFilters(new Set(['available', 'low-stock', 'out-of-stock']))}
+                      className="flex items-center gap-2"
+                    >
+                      <RefreshCw className="w-4 h-4" />
+                      Reset Filters
+                    </Button>
+                  </div>
+                )}
+                {books.length === 0 && (
+                  <div className="py-16 text-center">
+                    <BookOpen className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">No books found</h3>
+                    <p className="text-gray-600 mb-6">Get started by adding your first book to the library.</p>
+                    <Button className="flex items-center gap-2">
+                      <Plus className="w-4 h-4" />
+                      Add First Book
+                    </Button>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
