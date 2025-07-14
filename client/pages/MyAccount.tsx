@@ -11,6 +11,8 @@ import PasswordChangeForm from "../components/PasswordChangeForm";
 import UserPreferencesForm from "../components/UserPreferencesForm";
 import AccountDeletionForm from "../components/AccountDeletionForm";
 import SessionManagement from "../components/SessionManagement";
+import ProfilePictureUpload from "../components/ProfilePictureUpload";
+import UserAvatar from "../components/UserAvatar";
 import { FadeIn, StaggeredFadeIn } from "../components/PageTransition";
 import { 
   User, 
@@ -367,8 +369,8 @@ export default function MyAccount() {
             <FadeIn delay={100}>
               <Card className="overflow-hidden">
                 <CardHeader className="text-center bg-gradient-to-br from-blue-50 to-indigo-50 pb-6">
-                  <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
-                    <User className="w-10 h-10 text-white" />
+                  <div className="flex justify-center mb-4">
+                    <UserAvatar user={user} size="xl" />
                   </div>
                   <CardTitle className="text-xl font-semibold text-gray-900">{user.name}</CardTitle>
                   <CardDescription className="text-gray-600">{user.email}</CardDescription>
@@ -528,15 +530,23 @@ export default function MyAccount() {
                         Profile Information
                       </h2>
                       <p className="text-gray-600">
-                        Update your personal information and contact details
+                        Update your personal information, contact details, and profile picture
                       </p>
                     </div>
                     
-                    <Card className="border-gray-200 shadow-sm">
-                      <CardContent className="p-6">
-                        <ProfileEditForm onSave={handleProfileSaved} />
-                      </CardContent>
-                    </Card>
+                    <div className="grid gap-6 lg:grid-cols-2">
+                      <Card className="border-gray-200 shadow-sm">
+                        <CardContent className="p-6">
+                          <ProfileEditForm onSave={handleProfileSaved} />
+                        </CardContent>
+                      </Card>
+                      
+                      <Card className="border-gray-200 shadow-sm">
+                        <CardContent className="p-6">
+                          <ProfilePictureUpload onUploadSuccess={handleProfileSaved} />
+                        </CardContent>
+                      </Card>
+                    </div>
                   </div>
                 </TabsContent>
 

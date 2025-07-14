@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
+import multer from "multer";
 
 // Helper function to parse user agent and extract device info
 function parseUserAgent(userAgent: string, ipAddress: string) {
@@ -76,6 +77,12 @@ const userSchema = new mongoose.Schema({
     notifications: { type: Boolean, default: true },
     defaultSearch: { type: String, default: "title" },
     displayMode: { type: String, default: "list" },
+  },
+  profilePicture: {
+    data: { type: Buffer, default: null },
+    contentType: { type: String, default: null },
+    fileName: { type: String, default: null },
+    uploadDate: { type: Date, default: null }
   },
   resetToken: String,
   resetTokenExpiry: Date,
@@ -411,6 +418,104 @@ export function requireRole(roles: string[]) {
 export const requireAdmin = requireRole(['admin']);
 export const requireLibrarian = requireRole(['admin', 'librarian']);
 export const requireUser = requireRole(['admin', 'librarian', 'user']);
+
+// Configure multer for file uploads
+const storage = multer.memoryStorage();
+const upload = multer({
+  storage: storage,
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    // Accept only image files
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed'));
+    }
+  },
+});
+
+// POST /api/profile/picture - Upload profile picture
+export async function uploadProfilePicture(req: Request, res: Response) {
+  try {
+    const user = (req as any).user;
+    if (!user) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    // Use multer middleware
+    upload.single('profilePicture')(req, res, async (err) => {
+      if (err) {
+        return res.status(400).json({ message: err.message });
+      }
+
+      const file = (req as any).file;
+      if (!file) {
+        return res.status(400).json({ message: "No file uploaded" });
+      }
+
+      // Update user profile picture
+      await User.findByIdAndUpdate(user.id, {
+        profilePicture: {
+          data: file.buffer,
+          contentType: file.mimetype,
+          fileName: file.originalname,
+          uploadDate: new Date()
+        }
+      });
+
+      res.json({ 
+        success: true, 
+        message: "Profile picture uploaded successfully" 
+      });
+    });
+  } catch (error) {
+    console.error("Upload profile picture error:", error);
+    res.status(500).json({ message: "Failed to upload profile picture" });
+  }
+}
+
+// GET /api/profile/picture/:userId - Get profile picture
+export async function getProfilePicture(req: Request, res: Response) {
+  try {
+    const { userId } = req.params;
+    const user = await User.findById(userId).select('profilePicture');
+    
+    if (!user || !user.profilePicture || !user.profilePicture.data) {
+      return res.status(404).json({ message: "Profile picture not found" });
+    }
+
+    res.set('Content-Type', user.profilePicture.contentType);
+    res.set('Content-Disposition', `inline; filename="${user.profilePicture.fileName}"`);
+    res.send(user.profilePicture.data);
+  } catch (error) {
+    console.error("Get profile picture error:", error);
+    res.status(500).json({ message: "Failed to get profile picture" });
+  }
+}
+
+// DELETE /api/profile/picture - Remove profile picture
+export async function removeProfilePicture(req: Request, res: Response) {
+  try {
+    const user = (req as any).user;
+    if (!user) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    await User.findByIdAndUpdate(user.id, {
+      $unset: { profilePicture: 1 }
+    });
+
+    res.json({ 
+      success: true, 
+      message: "Profile picture removed successfully" 
+    });
+  } catch (error) {
+    console.error("Remove profile picture error:", error);
+    res.status(500).json({ message: "Failed to remove profile picture" });
+  }
+}
 
 // Export User model for use in profile endpoints
 export { User, verifyTokenWithSession }; 
