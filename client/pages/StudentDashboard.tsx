@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/use-auth";
+import UserAvatar from "../components/UserAvatar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -924,6 +925,13 @@ export default function StudentDashboard() {
               <CardContent>
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   <div className="space-y-4">
+                    <div className="flex items-center gap-4 mb-6">
+                      <UserAvatar user={user} size="lg" />
+                      <div>
+                        <h3 className="text-lg font-semibold">{user.name}</h3>
+                        <p className="text-sm text-gray-600">{user.email}</p>
+                      </div>
+                    </div>
                     <div>
                       <label className="text-sm font-medium text-gray-600">Full Name</label>
                       <p className="mt-1 text-lg">{user.name}</p>
@@ -957,7 +965,7 @@ export default function StudentDashboard() {
                     </div>
                     <div>
                       <label className="text-sm font-medium text-gray-600">Member Since</label>
-                      <p className="mt-1">{new Date(user.createdAt || Date.now()).toLocaleDateString()}</p>
+                      <p className="mt-1">{new Date().toLocaleDateString()}</p>
                     </div>
                   </div>
                 </div>

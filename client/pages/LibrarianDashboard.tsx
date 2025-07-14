@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/use-auth";
+import UserAvatar from "../components/UserAvatar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -91,6 +92,12 @@ interface User {
   activeLoans: number;
   overdueLoans: number;
   totalFines: number;
+  profilePicture?: {
+    data: string;
+    contentType: string;
+    fileName: string;
+    uploadDate: string;
+  };
 }
 
 export default function LibrarianDashboard() {
@@ -1124,9 +1131,12 @@ export default function LibrarianDashboard() {
                   {searchResults.map((user) => (
                     <div key={user._id} className="flex items-center justify-between p-4 border rounded-lg">
                       <div className="grid grid-cols-4 gap-4 flex-1">
-                        <div>
-                          <p className="font-medium">{user.name}</p>
-                          <p className="text-sm text-gray-600">{user.email}</p>
+                        <div className="flex items-center gap-3">
+                          <UserAvatar user={{ id: user._id, name: user.name, profilePicture: user.profilePicture }} size="md" />
+                          <div>
+                            <p className="font-medium">{user.name}</p>
+                            <p className="text-sm text-gray-600">{user.email}</p>
+                          </div>
                         </div>
                         <div>
                           <p className="text-sm">Role: {user.role}</p>

@@ -51,7 +51,8 @@ export async function getProfile(req: Request, res: Response) {
       name: user.name, 
       email: user.email, 
       role: user.role,
-      preferences: user.preferences 
+      preferences: user.preferences,
+      profilePicture: user.profilePicture
     });
   } catch (err) {
     console.error("Get profile error:", err);

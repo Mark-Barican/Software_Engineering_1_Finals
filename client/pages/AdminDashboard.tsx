@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/use-auth";
+import UserAvatar from "../components/UserAvatar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -52,6 +53,12 @@ interface User {
   createdAt: string;
   lastLogin: string;
   accountStatus: 'active' | 'inactive' | 'suspended';
+  profilePicture?: {
+    data: string;
+    contentType: string;
+    fileName: string;
+    uploadDate: string;
+  };
   // For students only
   currentBorrowedBooks?: number;
   totalBooksBorrowed?: number;
@@ -598,9 +605,7 @@ export default function AdminDashboard() {
                     {/* Header */}
                     <div className="flex items-center justify-between mb-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center">
-                          <Users className="w-5 h-5 text-white" />
-                        </div>
+                        <UserAvatar user={user} size="md" />
                         <div>
                           <h3 className="font-semibold text-gray-900">{user.name}</h3>
                           <p className="text-sm text-gray-600">{user.email}</p>

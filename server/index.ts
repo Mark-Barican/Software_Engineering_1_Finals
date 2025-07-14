@@ -3,7 +3,7 @@ import cors from "cors";
 import { handleDemo } from "./routes/demo";
 import { getProfile, updateProfile, changePassword, deleteProfile } from "./routes/profile";
 import mongoose from "mongoose";
-import { register, login, forgotPassword, resetPassword, getUserSessions, revokeSession, revokeAllSessions, refreshSession, verifyTokenWithSession, requireAdmin, requireLibrarian, requireUser } from "./routes/auth";
+import { register, login, forgotPassword, resetPassword, getUserSessions, revokeSession, revokeAllSessions, refreshSession, verifyTokenWithSession, requireAdmin, requireLibrarian, requireUser, uploadProfilePicture, getProfilePicture, removeProfilePicture } from "./routes/auth";
 import { getAdminStats, getUsers, createUser, updateUser, deleteUser, getBooks, createBook, updateBook, deleteBook } from "./routes/admin";
 import { getLibrarianDashboard, getLibrarianBooks, issueBook, returnBook, getLoans, getOverdueBooks, getReservations, searchUsers, getUserLoans, updateReservation, createFine, updateFine, getFines, updateBookStatus, sendNotification } from "./routes/librarian";
 import { getStudentStats, getBooksForStudent, getStudentLoans, renewLoan, getStudentReservations, createReservation, cancelReservation, getStudentFines, getStudentNotifications, markNotificationAsRead, submitFeedback, submitBookSuggestion, getStudentProfile } from "./routes/student";
@@ -44,6 +44,11 @@ export function createServer() {
   app.put("/api/profile", verifyTokenWithSession, updateProfile);
   app.post("/api/profile/change-password", verifyTokenWithSession, changePassword);
   app.delete("/api/profile", verifyTokenWithSession, deleteProfile);
+  
+  // Profile picture routes
+  app.post("/api/profile/picture", verifyTokenWithSession, requireUser, uploadProfilePicture);
+  app.get("/api/profile/picture/:userId", getProfilePicture);
+  app.delete("/api/profile/picture", verifyTokenWithSession, requireUser, removeProfilePicture);
 
   // Auth routes
   app.post("/api/register", register);

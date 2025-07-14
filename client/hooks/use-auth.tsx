@@ -10,6 +10,12 @@ interface User {
     defaultSearch: string;
     displayMode: string;
   };
+  profilePicture?: {
+    data: string;
+    contentType: string;
+    fileName: string;
+    uploadDate: string;
+  };
 }
 
 interface AuthContextType {
@@ -70,7 +76,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           name: data.name, 
           email: data.email, 
           role: data.role || 'user',
-          preferences: data.preferences 
+          preferences: data.preferences,
+          profilePicture: data.profilePicture
         });
       } else {
         setUser(null);

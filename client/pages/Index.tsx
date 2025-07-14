@@ -12,6 +12,7 @@ import { Link, useNavigate } from "react-router-dom";
 import LoginModal from "../components/LoginModal";
 import RegisterModal from "../components/RegisterModal";
 import { useAuth } from "../hooks/use-auth";
+import UserAvatar from "../components/UserAvatar";
 
 const bookCovers = [
   {
@@ -167,7 +168,7 @@ export default function Index() {
                   onClick={() => navigate("/my-account")}
                   className="flex items-center gap-2 px-4 py-2 border border-brand-border-light rounded-full font-abhaya text-base bg-gray-50 hover:bg-gray-100 transition-colors"
                 >
-                  <User size={20} className="mr-2" />
+                  <UserAvatar user={user} size="sm" />
                   <span>{user.name}</span>
                 </button>
                 {isAdmin && (

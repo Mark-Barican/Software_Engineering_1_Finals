@@ -453,7 +453,7 @@ export async function searchUsers(req: Request, res: Response) {
       ],
       role: { $ne: 'admin' } // Don't show admin users
     })
-      .select('name email role createdAt lastLogin')
+      .select('name email role createdAt lastLogin profilePicture')
       .limit(20);
 
     // Get loan info for each user
