@@ -11,10 +11,10 @@ import {
   Shield, 
   BookOpen, 
   Clock,
-  DollarSign,
   X
 } from "lucide-react";
 import UserAvatar from "./UserAvatar";
+import { PesoSign } from "@/components/ui/button";
 
 interface UserViewModalProps {
   isOpen: boolean;
@@ -134,7 +134,7 @@ export default function UserViewModal({ isOpen, onClose, user }: UserViewModalPr
                     <div className="text-xs text-purple-600">Reservations</div>
                   </div>
                   <div className="text-center p-3 bg-red-50 rounded-lg">
-                    <div className="text-2xl font-bold text-red-600">${(user.outstandingFines || 0).toFixed(2)}</div>
+                    <div className="text-2xl font-bold text-red-600">₱{(user.outstandingFines || 0).toFixed(2)}</div>
                     <div className="text-xs text-red-600">Outstanding Fines</div>
                   </div>
                 </div>

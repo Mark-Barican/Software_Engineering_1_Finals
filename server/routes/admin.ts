@@ -294,6 +294,24 @@ export async function deleteUser(req: Request, res: Response) {
       return res.status(404).json({ message: "User not found" });
     }
 
+    // Import Loan, Reservation, Fine models
+    const { Loan, Reservation, Fine } = require('./librarian');
+
+    // Check for active loans
+    const activeLoans = await Loan.countDocuments({ userId: id, status: 'active' });
+    // Check for active reservations
+    const activeReservations = await Reservation.countDocuments({ userId: id, status: { $in: ['pending', 'ready'] } });
+    // Check for unpaid fines
+    const unpaidFines = await Fine.countDocuments({ userId: id, status: { $in: ['pending', 'partial'] } });
+
+    if (activeLoans > 0 || activeReservations > 0 || unpaidFines > 0) {
+      let issues = [];
+      if (activeLoans > 0) issues.push(`${activeLoans} active loan(s)`);
+      if (activeReservations > 0) issues.push(`${activeReservations} active reservation(s)`);
+      if (unpaidFines > 0) issues.push(`${unpaidFines} unpaid fine(s)`);
+      return res.status(400).json({ message: `Cannot delete user. Please resolve: ${issues.join(', ')}.` });
+    }
+
     await User.findByIdAndDelete(id);
 
     res.json({ message: "User deleted successfully" });
@@ -328,8 +346,18 @@ export async function getBooks(req: Request, res: Response) {
       author: book.author,
       isbn: book.isbn,
       genre: book.genre,
+      publisher: book.publisher,
+      publishedYear: book.publishedYear,
+      description: book.description,
+      coverImage: book.coverImage,
       totalCopies: book.totalCopies,
       availableCopies: book.availableCopies,
+      location: book.location,
+      language: book.language,
+      pages: book.pages,
+      hasDownload: book.hasDownload,
+      hasReadOnline: book.hasReadOnline,
+      categories: book.categories,
       addedDate: book.addedDate,
       status: book.availableCopies === 0 ? 'out-of-stock' : 
               book.availableCopies <= 2 ? 'low-stock' : 'available'
@@ -414,8 +442,18 @@ export async function createBook(req: Request, res: Response) {
         author: newBook.author,
         isbn: newBook.isbn,
         genre: newBook.genre,
+        publisher: newBook.publisher,
+        publishedYear: newBook.publishedYear,
+        description: newBook.description,
+        coverImage: newBook.coverImage,
         totalCopies: newBook.totalCopies,
         availableCopies: newBook.availableCopies,
+        location: newBook.location,
+        language: newBook.language,
+        pages: newBook.pages,
+        hasDownload: newBook.hasDownload,
+        hasReadOnline: newBook.hasReadOnline,
+        categories: newBook.categories,
         addedDate: newBook.addedDate
       }
     });
@@ -449,6 +487,36 @@ export async function updateBook(req: Request, res: Response) {
       }
     }
 
+    // Import Reservation model
+    const { Reservation } = require('./librarian');
+
+    // Check if total copies are being reduced
+    if (updateData.totalCopies !== undefined && updateData.totalCopies < book.totalCopies) {
+      const reduction = book.totalCopies - updateData.totalCopies;
+      
+      // Check if reduction would make available copies negative
+      if (book.availableCopies - reduction < 0) {
+        return res.status(400).json({ 
+          message: `Cannot reduce total copies to ${updateData.totalCopies}. There are ${book.availableCopies} available copies and ${book.totalCopies - book.availableCopies} on loan.`
+        });
+      }
+
+      // Check for pending reservations that might be affected
+      const pendingReservations = await Reservation.countDocuments({
+        bookId: id,
+        status: 'pending'
+      });
+
+      if (pendingReservations > 0) {
+        return res.status(400).json({ 
+          message: `Cannot reduce copies. There are ${pendingReservations} pending reservation(s) for this book. Please handle reservations first.`
+        });
+      }
+
+      // Update available copies accordingly
+      updateData.availableCopies = Math.max(0, book.availableCopies - reduction);
+    }
+
     const updatedBook = await Book.findByIdAndUpdate(
       id,
       { ...updateData, lastUpdated: new Date() },
@@ -463,8 +531,18 @@ export async function updateBook(req: Request, res: Response) {
         author: updatedBook.author,
         isbn: updatedBook.isbn,
         genre: updatedBook.genre,
+        publisher: updatedBook.publisher,
+        publishedYear: updatedBook.publishedYear,
+        description: updatedBook.description,
+        coverImage: updatedBook.coverImage,
         totalCopies: updatedBook.totalCopies,
         availableCopies: updatedBook.availableCopies,
+        location: updatedBook.location,
+        language: updatedBook.language,
+        pages: updatedBook.pages,
+        hasDownload: updatedBook.hasDownload,
+        hasReadOnline: updatedBook.hasReadOnline,
+        categories: updatedBook.categories,
         addedDate: updatedBook.addedDate,
         lastUpdated: updatedBook.lastUpdated
       }
@@ -490,9 +568,44 @@ export async function deleteBook(req: Request, res: Response) {
       return res.status(404).json({ message: "Book not found" });
     }
 
+    // Import Reservation and Loan models
+    const { Reservation, Loan } = require('./librarian');
+
+    // Check for active reservations
+    const activeReservations = await Reservation.find({
+      bookId: id,
+      status: { $in: ['pending', 'ready'] }
+    }).populate('userId', 'name email');
+
+    // Check for active loans
+    const activeLoans = await Loan.countDocuments({ bookId: id, status: 'active' });
+
+    if (activeReservations.length > 0 || activeLoans > 0) {
+      let issues = [];
+      if (activeReservations.length > 0) issues.push(`${activeReservations.length} active reservation(s)`);
+      if (activeLoans > 0) issues.push(`${activeLoans} active loan(s)`);
+      return res.status(400).json({ 
+        message: `Cannot delete book. Please resolve: ${issues.join(', ')}.`,
+        reservations: activeReservations
+      });
+    }
+
+    // Cancel any remaining reservations (expired, cancelled, etc.)
+    await Reservation.updateMany(
+      { bookId: id },
+      { 
+        status: 'cancelled',
+        notes: 'Book deleted from library'
+      }
+    );
+
+    // Delete the book
     await Book.findByIdAndDelete(id);
 
-    res.json({ message: "Book deleted successfully" });
+    res.json({ 
+      message: "Book deleted successfully",
+      cancelledReservations: activeReservations.length
+    });
   } catch (error) {
     console.error('Delete book error:', error);
     res.status(500).json({ message: 'Internal server error' });

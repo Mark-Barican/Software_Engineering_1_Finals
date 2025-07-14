@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/use-auth";
 import UserAvatar from "../components/UserAvatar";
 import BookFormModal from "../components/BookFormModal";
+import BookViewModal from "../components/BookViewModal";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,8 +48,13 @@ import {
   Layers,
   ChevronDown,
   Info,
-  BookUser
+  BookUser,
+  Loader2
 } from "lucide-react";
+import { PesoSign } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 
 interface DashboardStats {
   totalBooks: number;
@@ -65,10 +71,23 @@ interface Book {
   author: string;
   isbn: string;
   genre: string;
+  publisher?: string;
+  publishedYear?: number;
+  description?: string;
+  coverImage?: string;
   totalCopies: number;
   availableCopies: number;
   currentLoans: number;
+  location?: string;
+  language?: string;
+  pages?: number;
+  hasDownload?: boolean;
+  hasReadOnline?: boolean;
+  categories?: string[];
+  addedDate?: string;
   status: 'available' | 'low-stock' | 'out-of-stock';
+  activeLoans?: number;
+  pendingReservations?: number;
 }
 
 interface Loan {
@@ -135,6 +154,7 @@ export default function LibrarianDashboard() {
   const [overdueLoans, setOverdueLoans] = useState<Loan[]>([]);
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [searchResults, setSearchResults] = useState<User[]>([]);
+  const [imageKey, setImageKey] = useState(Date.now());
   
   // Form states
   const [bookSearch, setBookSearch] = useState("");
@@ -179,6 +199,17 @@ export default function LibrarianDashboard() {
   const [showBookModal, setShowBookModal] = useState(false);
   const [editingBook, setEditingBook] = useState<any>(null);
   const [bookModalMode, setBookModalMode] = useState<'add' | 'edit'>('add');
+
+  // Book view modal states
+  const [showBookViewModal, setShowBookViewModal] = useState(false);
+  const [selectedBook, setSelectedBook] = useState<any>(null);
+
+  const { toast } = useToast();
+
+  const [showBulkAudit, setShowBulkAudit] = useState(false);
+  const [bulkAuditInputs, setBulkAuditInputs] = useState<Record<string, string>>({});
+  const [bulkAuditResults, setBulkAuditResults] = useState<{success: number, error: number, details: {book: Book, status: 'success'|'error', message: string}[]}|null>(null);
+  const [bulkAuditLoading, setBulkAuditLoading] = useState(false);
 
   useEffect(() => {
     // Check if user is librarian or admin
@@ -231,23 +262,24 @@ export default function LibrarianDashboard() {
   const loadBooks = async () => {
     try {
       const token = localStorage.getItem('token') || sessionStorage.getItem('token');
-      const response = await fetch(`/api/librarian/books?limit=50&search=${bookSearch}`, {
+      if (!token) return;
+
+      const response = await fetch('/api/librarian/books?limit=50', {
         headers: { Authorization: `Bearer ${token}` }
       });
       
       if (response.ok) {
         const data = await response.json();
         setBooks(data.books);
+        setImageKey(Date.now()); // Refresh image cache
         
         // Extract unique genres for filtering
-        const genreArray: string[] = data.books.map((book: Book) => book.genre).filter((genre): genre is string => Boolean(genre));
-        const genres = new Set(genreArray);
+        const genres = new Set<string>();
+        data.books.forEach((book: Book) => {
+          if (book.genre) genres.add(book.genre);
+        });
         setAllGenres(genres);
-        
-        // Initialize genre filters to show all genres
-        if (genreFilters.size === 0) {
-          setGenreFilters(new Set(genreArray));
-        }
+        setGenreFilters(new Set(genres));
       }
     } catch (error) {
       console.error('Error loading books:', error);
@@ -296,6 +328,26 @@ export default function LibrarianDashboard() {
       if (response.ok) {
         const data = await response.json();
         setReservations(data);
+        
+        // Check for pending reservations that can be marked as ready
+        const pendingReservations = data.filter((res: any) => res.status === 'pending');
+        const availableBooks = books.filter(book => book.availableCopies > 0);
+        
+        const readyToMark = pendingReservations.filter((res: any) => 
+          availableBooks.some(book => book.id === res.bookId._id)
+        );
+        
+        if (readyToMark.length > 0) {
+          const shouldAutoMark = confirm(
+            `Found ${readyToMark.length} pending reservation(s) for books that are now available.\n\nWould you like to automatically mark them as ready for pickup?`
+          );
+          
+          if (shouldAutoMark) {
+            for (const reservation of readyToMark) {
+              await updateReservationStatus(reservation._id, 'ready', 'Automatically marked as ready - book now available');
+            }
+          }
+        }
       }
     } catch (error) {
       console.error('Error loading reservations:', error);
@@ -360,19 +412,34 @@ export default function LibrarianDashboard() {
       });
       
       if (response.ok) {
-        alert('Book issued successfully!');
+        toast({
+          title: "Success",
+          description: "Book issued successfully!",
+        });
         setIssueBookForm({ userId: "", bookId: "", loanDays: 14 });
         setFormErrors({ userId: "", bookId: "", loanDays: "" });
-        loadLoans();
-        loadBooks();
-        loadDashboardData();
+        
+        // Immediately refresh all related data
+        await Promise.all([
+          loadLoans(),
+          loadBooks(),
+          loadDashboardData()
+        ]);
       } else {
         const error = await response.json();
-        alert(`Error: ${error.message}`);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: error.message || "Failed to issue book",
+        });
       }
     } catch (error) {
       console.error('Error issuing book:', error);
-      alert('Error issuing book');
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Error issuing book",
+      });
     }
   };
 
@@ -391,21 +458,39 @@ export default function LibrarianDashboard() {
       if (response.ok) {
         const result = await response.json();
         if (result.fine) {
-          alert(`Book returned successfully! Fine of $${result.fine.toFixed(2)} has been applied for overdue.`);
+          toast({
+            title: "Book Returned",
+            description: `Book returned successfully! Fine of $${result.fine.toFixed(2)} has been applied for overdue.`,
+          });
         } else {
-          alert('Book returned successfully!');
+          toast({
+            title: "Success",
+            description: "Book returned successfully!",
+          });
         }
-        loadLoans();
-        loadBooks();
-        loadOverdueBooks();
-        loadDashboardData();
+        
+        // Immediately refresh all related data  
+        await Promise.all([
+          loadLoans(),
+          loadBooks(),
+          loadOverdueBooks(),
+          loadDashboardData()
+        ]);
       } else {
         const error = await response.json();
-        alert(`Error: ${error.message}`);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: error.message || "Failed to return book",
+        });
       }
     } catch (error) {
       console.error('Error returning book:', error);
-      alert('Error returning book');
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Error returning book",
+      });
     }
   };
 
@@ -508,7 +593,13 @@ export default function LibrarianDashboard() {
       if (res.ok) {
         const data = await res.json();
         setAuditHistory(prev => ({ ...prev, [bookId]: data.audits }));
+      } else {
+        const error = await res.json();
+        alert(`Error fetching audit history: ${error.message}`);
       }
+    } catch (error) {
+      console.error('Error fetching audit history:', error);
+      alert('Error fetching audit history');
     } finally {
       setAuditLoading(false);
     }
@@ -516,6 +607,18 @@ export default function LibrarianDashboard() {
 
   // Audit a book (log current stock)
   const auditBook = async (book: Book) => {
+    const actualCount = prompt(`Enter actual count for "${book.title}":\nExpected: ${book.totalCopies}\nCurrently Available: ${book.availableCopies}\nOn Loan: ${book.currentLoans}\n\nEnter the actual count found:`, `${book.availableCopies + book.currentLoans}`);
+    
+    if (actualCount === null) return; // User cancelled
+    
+    const actualCountNum = parseInt(actualCount);
+    if (isNaN(actualCountNum) || actualCountNum < 0) {
+      alert('Please enter a valid number');
+      return;
+    }
+
+    const notes = prompt('Enter any notes about this audit (optional):', '');
+    
     setAuditingBookId(book.id);
     setAuditLoading(true);
     try {
@@ -529,19 +632,119 @@ export default function LibrarianDashboard() {
         body: JSON.stringify({
           bookId: book.id,
           expectedCount: book.totalCopies,
-          actualCount: book.availableCopies + book.currentLoans,
-          notes: ''
+          actualCount: actualCountNum,
+          notes: notes || ''
         })
       });
       if (res.ok) {
+        const result = await res.json();
         await fetchAuditHistory(book.id);
-        alert('Audit logged!');
+        alert(`Audit logged successfully!\nExpected: ${book.totalCopies}\nActual: ${actualCountNum}\nDiscrepancy: ${result.audit.discrepancy}\nStatus: ${result.audit.status}`);
       } else {
-        alert('Failed to log audit.');
+        const error = await res.json();
+        alert(`Failed to log audit: ${error.message}`);
       }
+    } catch (error) {
+      console.error('Error logging audit:', error);
+      alert('Error logging audit');
     } finally {
       setAuditingBookId(null);
       setAuditLoading(false);
+    }
+  };
+
+  // Resolve an audit
+  const resolveAudit = async (auditId: string, bookId: string) => {
+    const notes = prompt('Enter resolution notes (optional):', '');
+    
+    try {
+      const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+      const res = await fetch(`/api/librarian/inventory-audits/${auditId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          resolved: true,
+          notes: notes || ''
+        })
+      });
+      if (res.ok) {
+        await fetchAuditHistory(bookId);
+        alert('Audit resolved successfully!');
+      } else {
+        const error = await res.json();
+        alert(`Failed to resolve audit: ${error.message}`);
+      }
+    } catch (error) {
+      console.error('Error resolving audit:', error);
+      alert('Error resolving audit');
+    }
+  };
+
+  // Bulk audit function
+  const handleOpenBulkAudit = () => {
+    setBulkAuditInputs({});
+    setBulkAuditResults(null);
+    setShowBulkAudit(true);
+  };
+
+  const handleBulkAuditInput = (bookId: string, value: string) => {
+    setBulkAuditInputs(inputs => ({ ...inputs, [bookId]: value }));
+  };
+
+  const handleSubmitBulkAudit = async () => {
+    setBulkAuditLoading(true);
+    const lowStockBooks = books.filter(book => book.status === 'low-stock' || book.status === 'out-of-stock');
+    let successCount = 0;
+    let errorCount = 0;
+    let details: {book: Book, status: 'success'|'error', message: string}[] = [];
+    for (const book of lowStockBooks) {
+      const input = bulkAuditInputs[book.id];
+      if (input === undefined || input.trim() === "") {
+        details.push({book, status: 'error', message: 'Skipped (no input)'});
+        errorCount++;
+        continue;
+      }
+      const actualCountNum = parseInt(input);
+      if (isNaN(actualCountNum) || actualCountNum < 0) {
+        details.push({book, status: 'error', message: 'Invalid number'});
+        errorCount++;
+        continue;
+      }
+      try {
+        const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+        const res = await fetch('/api/librarian/inventory-audits', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            bookId: book.id,
+            expectedCount: book.totalCopies,
+            actualCount: actualCountNum,
+            notes: 'Bulk audit'
+          })
+        });
+        if (res.ok) {
+          successCount++;
+          details.push({book, status: 'success', message: 'Audit logged'});
+        } else {
+          errorCount++;
+          details.push({book, status: 'error', message: 'API error'});
+        }
+      } catch (error) {
+        errorCount++;
+        details.push({book, status: 'error', message: 'Network error'});
+      }
+    }
+    setBulkAuditResults({success: successCount, error: errorCount, details});
+    setBulkAuditLoading(false);
+    // Refresh audit history for all books
+    for (const book of lowStockBooks) {
+      await fetchAuditHistory(book.id);
     }
   };
 
@@ -624,9 +827,11 @@ export default function LibrarianDashboard() {
       });
       
       if (response.ok) {
-        alert(`Reservation status updated to ${status}`);
+        const result = await response.json();
+        alert(`Reservation status updated to ${status}\n${result.message}`);
         loadReservations();
         loadDashboardData(); // Refresh stats
+        loadBooks(); // Refresh book availability
       } else {
         const error = await response.json();
         alert(`Error: ${error.message}`);
@@ -710,6 +915,11 @@ export default function LibrarianDashboard() {
     if (!token) return;
 
     try {
+      // Ensure coverImage persists if not changed
+      let dataToSend = { ...bookData };
+      if (bookModalMode === 'edit' && editingBook?.coverImage && !bookData.coverImage) {
+        dataToSend.coverImage = editingBook.coverImage;
+      }
       const url = bookModalMode === 'add' 
         ? '/api/librarian/books' 
         : `/api/librarian/books/${editingBook?.id}`;
@@ -722,24 +932,56 @@ export default function LibrarianDashboard() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify(bookData)
+        body: JSON.stringify(dataToSend)
       });
       
       if (response.ok) {
         const result = await response.json();
-        alert(bookModalMode === 'add' ? 'Book added successfully!' : 'Book updated successfully!');
+        toast({
+          title: "Success",
+          description: bookModalMode === 'add' ? 'Book added successfully!' : 'Book updated successfully!',
+        });
         
-        // Refresh books list
-        loadBooks();
+        // Close modal first
         setShowBookModal(false);
         setEditingBook(null);
+        
+        // Immediately refresh all data
+        await Promise.all([
+          loadDashboardData(),
+          loadBooks()
+        ]);
+        
+        // Update image cache to show new images immediately
+        setImageKey(Date.now());
+        
+        // If we're viewing this book, update the selected book data
+        if (selectedBook && bookModalMode === 'edit' && selectedBook.id === editingBook?.id) {
+          setSelectedBook({ ...selectedBook, ...result.book });
+        }
       } else {
         const error = await response.json();
-        alert(`Error: ${error.message}`);
+        if (error.message && error.message.includes('reservation')) {
+          toast({
+            variant: "destructive",
+            title: "Error",
+            description: `${error.message}\n\nPlease handle all reservations before making this change.`,
+          });
+        } else {
+          toast({
+            variant: "destructive", 
+            title: "Error",
+            description: error.message || "Failed to save book",
+          });
+        }
       }
     } catch (error) {
       console.error('Error saving book:', error);
-      alert('An error occurred while saving the book');
+      toast({
+        variant: "destructive",
+        title: "Error", 
+        description: "An error occurred while saving the book",
+      });
     }
   };
 
@@ -753,6 +995,11 @@ export default function LibrarianDashboard() {
     setEditingBook(book);
     setBookModalMode('edit');
     setShowBookModal(true);
+  };
+
+  const handleBookView = (book: Book) => {
+    setSelectedBook(book);
+    setShowBookViewModal(true);
   };
 
   if (!user || !['librarian', 'admin'].includes(user.role)) {
@@ -905,10 +1152,10 @@ export default function LibrarianDashboard() {
                   <Card>
                     <CardContent className="p-6">
                       <div className="flex items-center">
-                        <DollarSign className="w-8 h-8 text-orange-600" />
+                        <PesoSign className="w-8 h-8 text-orange-600" />
                         <div className="ml-4">
                           <p className="text-sm font-medium text-gray-600">Outstanding Fines</p>
-                          <p className="text-2xl font-bold text-gray-900">${stats.totalFines.toFixed(2)}</p>
+                          <p className="text-2xl font-bold text-gray-900">₱{stats.totalFines.toFixed(2)}</p>
                         </div>
                       </div>
                     </CardContent>
@@ -1145,36 +1392,110 @@ export default function LibrarianDashboard() {
 
             <Card>
               <CardContent className="p-6">
-                <div className="space-y-4">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                   {filteredBooks.map((book) => (
-                    <div key={book.id} className="flex items-center justify-between p-4 border rounded-lg">
-                      <div className="flex items-center gap-4">
+                    <div key={book.id} className="group relative bg-white border border-gray-200 rounded-xl p-4 hover:shadow-lg transition-all duration-200 hover:border-blue-300">
+                      <div className="flex gap-4">
+                        {/* Enhanced Book Cover */}
+                        <div className="flex-shrink-0">
+                          <div className="w-20 h-28 bg-gradient-to-br from-gray-100 to-gray-200 rounded-lg shadow-md overflow-hidden border-2 border-gray-100 group-hover:border-blue-200 transition-colors">
+                            {book.coverImage ? (
+                              <img 
+                                src={`${book.coverImage}${book.coverImage.includes('?') ? '&' : '?'}t=${imageKey}`} 
+                                alt={book.title}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none';
+                                  e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                                }}
+                              />
+                            ) : (
+                              <div className="w-full h-full bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
                         <BookOpen className="w-8 h-8 text-gray-400" />
-                        <div>
-                          <p className="font-medium">{book.title}</p>
-                          <p className="text-sm text-gray-600">by {book.author}</p>
-                          <p className="text-xs text-gray-500">ISBN: {book.isbn} | Genre: {book.genre}</p>
                         </div>
-                        <Badge className={getStatusColor(book.status)}>
-                          {book.status}
+                            )}
+                            {!book.coverImage && (
+                              <div className="hidden w-full h-full bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
+                                <BookOpen className="w-8 h-8 text-gray-400" />
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Book Information */}
+                        <div className="flex-1 min-w-0">
+                          <div className="mb-2">
+                            <h3 className="font-semibold text-gray-900 text-lg leading-tight mb-1 group-hover:text-blue-600 transition-colors">
+                              {book.title}
+                            </h3>
+                            <p className="text-sm text-gray-600 mb-2">by {book.author}</p>
+                          </div>
+
+                          {/* Status and Genre */}
+                          <div className="flex flex-wrap gap-1 mb-3">
+                            <Badge className={`${getStatusColor(book.status)} text-xs`}>
+                              {book.status?.replace('-', ' ')}
                         </Badge>
-                        <div className="text-sm text-gray-600">
-                          Available: {book.availableCopies}/{book.totalCopies}
-                          <br />
-                          On Loan: {book.currentLoans}
+                            <Badge variant="outline" className="text-xs">
+                              {book.genre}
+                            </Badge>
                         </div>
+
+                          {/* Book Details */}
+                          <div className="space-y-1 mb-3">
+                            <p className="text-xs text-gray-500">
+                              <span className="font-medium">ISBN:</span> {book.isbn}
+                            </p>
+                            {book.publisher && (
+                              <p className="text-xs text-gray-500">
+                                <span className="font-medium">Publisher:</span> {book.publisher}
+                              </p>
+                            )}
+                            {book.publishedYear && (
+                              <p className="text-xs text-gray-500">
+                                <span className="font-medium">Year:</span> {book.publishedYear}
+                              </p>
+                            )}
+                            {book.location && (
+                              <p className="text-xs text-gray-500">
+                                <span className="font-medium">Location:</span> {book.location}
+                              </p>
+                            )}
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Button variant="outline" size="sm">
+
+                          {/* Availability */}
+                          <div className="flex items-center justify-between">
+                            <div className="text-sm">
+                              <span className="font-medium text-gray-900">{book.availableCopies}</span>
+                              <span className="text-gray-500"> of {book.totalCopies} available</span>
+                              {book.currentLoans && book.currentLoans > 0 && (
+                                <span className="text-blue-600 text-xs block">{book.currentLoans} on loan</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                            title="View Details"
+                            onClick={() => handleBookView(book)}
+                          >
                           <Eye className="w-4 h-4" />
                         </Button>
                         <Button 
                           variant="outline" 
                           size="sm"
                           onClick={() => openEditBookModal(book)}
+                            className="h-8 w-8 p-0"
+                            title="Edit Book"
                         >
                           <Edit className="w-4 h-4" />
                         </Button>
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -1418,7 +1739,7 @@ export default function LibrarianDashboard() {
                         </div>
                         <div>
                           <p className="text-sm">Potential Fine:</p>
-                          <p className="font-medium text-red-600">${loan.potentialFine?.toFixed(2)}</p>
+                          <p className="font-medium text-red-600">₱{loan.potentialFine?.toFixed(2)}</p>
                         </div>
                         <div>
                           <Badge className="bg-red-100 text-red-800">
@@ -1503,7 +1824,7 @@ export default function LibrarianDashboard() {
                         </div>
                         <div>
                           <p className="text-sm">Outstanding Fines:</p>
-                          <p className="font-medium text-red-600">${user.totalFines.toFixed(2)}</p>
+                          <p className="font-medium text-red-600">₱{user.totalFines.toFixed(2)}</p>
                         </div>
                       </div>
                       <div className="flex gap-2">
@@ -1574,9 +1895,31 @@ export default function LibrarianDashboard() {
           <TabsContent value="inventory" className="space-y-6">
             <Card>
               <CardHeader>
-                <CardTitle>Inventory Checking & Audit</CardTitle>
+                <CardTitle className="flex items-center justify-between">
+                  <span>Inventory Checking & Audit</span>
+                  <div className="flex gap-2">
+                    <Button 
+                      variant="outline" 
+                      onClick={handleOpenBulkAudit}
+                      className="flex items-center gap-2"
+                    >
+                      <Package className="w-4 h-4" />
+                      Bulk Audit
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      onClick={() => {
+                        const lowStockCount = books.filter(b => b.status === 'low-stock' || b.status === 'out-of-stock').length;
+                        alert(`Inventory Summary:\nTotal Books: ${books.length}\nLow Stock: ${books.filter(b => b.status === 'low-stock').length}\nOut of Stock: ${books.filter(b => b.status === 'out-of-stock').length}\nBooks Needing Audit: ${lowStockCount}`);
+                      }}
+                    >
+                      <Info className="w-4 h-4" />
+                      Summary
+                    </Button>
+                  </div>
+                </CardTitle>
                 <CardDescription>
-                  View all books, check stock, and log inventory audits.
+                  View all books, check stock, and log inventory audits. Use bulk audit for low stock books.
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -1608,9 +1951,40 @@ export default function LibrarianDashboard() {
                             <Button size="sm" onClick={() => auditBook(book)} disabled={auditLoading && auditingBookId === book.id}>
                               {auditLoading && auditingBookId === book.id ? 'Auditing...' : 'Audit'}
                             </Button>
-                            <Button size="sm" variant="outline" className="ml-2" onClick={() => fetchAuditHistory(book.id)}>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button size="sm" variant="outline" className="ml-2" onClick={async () => {
+                                  // Always fetch fresh audit history, and use the result to determine toast
+                                  const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+                                  const res = await fetch(`/api/librarian/inventory-audits?bookId=${book.id}`, {
+                                    headers: { Authorization: `Bearer ${token}` }
+                                  });
+                                  if (res.ok) {
+                                    const data = await res.json();
+                                    setAuditHistory(prev => ({ ...prev, [book.id]: data.audits }));
+                                    if (!data.audits || data.audits.length === 0) {
+                                      toast({
+                                        title: `No Audit History`,
+                                        description: `No audit history found for '${book.title}'.`,
+                                      });
+                                    } else {
+                                      toast({
+                                        title: `Audit History Loaded`,
+                                        description: `Showing audit history for '${book.title}'.`,
+                                      });
+                                    }
+                                  } else {
+                                    toast({
+                                      title: `Error`,
+                                      description: `Failed to fetch audit history for '${book.title}'.`,
+                                    });
+                                  }
+                                }}>
                               History
                             </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Show audit history for this book</TooltipContent>
+                            </Tooltip>
                           </td>
                         </tr>
                       ))}
@@ -1618,37 +1992,125 @@ export default function LibrarianDashboard() {
                   </table>
                 </div>
                 {/* Audit History */}
-                {Object.entries(auditHistory).map(([bookId, audits]) => (
+                {Object.entries(auditHistory).map(([bookId, audits]) => {
+                  const book = books.find(b => b.id === bookId);
+                  const isLoading = auditLoading && auditingBookId === bookId;
+                  return (
                   <div key={bookId} className="mt-6">
-                    <h3 className="font-semibold text-lg mb-2">Audit History for Book ID: {bookId}</h3>
+                      <div className="flex items-center justify-between mb-2">
+                        <h3 className="font-semibold text-lg">
+                          Audit History for: {book?.title || `Book ID: ${bookId}`}
+                        </h3>
+                        <div className="flex gap-2">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button size="sm" variant="outline" onClick={async () => {
+                                await fetchAuditHistory(bookId);
+                                toast({
+                                  title: `Audit History Refreshed`,
+                                  description: `Audit history for '${book?.title || bookId}' has been refreshed.`,
+                                });
+                              }} disabled={isLoading}>
+                                {isLoading ? <RefreshCw className="w-4 h-4 mr-1 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-1" />} Refresh
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Refresh audit history</TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button size="sm" variant="destructive" onClick={() => {
+                                if (window.confirm('Remove audit history for this book from the UI? This does not delete data from the database.')) {
+                                  setAuditHistory(prev => {
+                                    const newHistory = { ...prev };
+                                    delete newHistory[bookId];
+                                    return newHistory;
+                                  });
+                                }
+                              }}>
+                                Remove from View
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Remove audit history for this book from view (does not delete data)</TooltipContent>
+                          </Tooltip>
+                        </div>
+                      </div>
+                      {(!audits || audits.length === 0) ? (
+                        <div className="text-center py-8">
+                          <Info className="w-12 h-12 text-gray-400 mx-auto mb-2" />
+                          <p className="text-gray-600">No audit history found for this book.</p>
+                        </div>
+                      ) : (
                     <div className="overflow-x-auto">
                       <table className="min-w-full text-xs">
                         <thead>
                           <tr className="bg-gray-50">
                             <th className="px-2 py-1">Date</th>
+                                <th className="px-2 py-1">Audited By</th>
                             <th className="px-2 py-1">Expected</th>
                             <th className="px-2 py-1">Actual</th>
                             <th className="px-2 py-1">Discrepancy</th>
                             <th className="px-2 py-1">Status</th>
+                                <th className="px-2 py-1">Resolved</th>
                             <th className="px-2 py-1">Notes</th>
+                                <th className="px-2 py-1">Actions</th>
                           </tr>
                         </thead>
                         <tbody>
                           {audits.map((audit: any) => (
-                            <tr key={audit._id}>
+                                <tr key={audit._id} className={audit.resolved ? 'bg-green-50' : 'bg-yellow-50'}>
                               <td className="px-2 py-1">{new Date(audit.auditDate).toLocaleString()}</td>
+                                  <td className="px-2 py-1">{audit.auditedBy?.name || 'Unknown'}</td>
                               <td className="px-2 py-1">{audit.expectedCount}</td>
                               <td className="px-2 py-1">{audit.actualCount}</td>
-                              <td className="px-2 py-1">{audit.discrepancy}</td>
-                              <td className="px-2 py-1">{audit.status}</td>
-                              <td className="px-2 py-1">{audit.notes}</td>
+                                  <td className="px-2 py-1">
+                                    <span className={`font-semibold ${
+                                      audit.discrepancy === 0 ? 'text-green-600' : 
+                                      audit.discrepancy < 0 ? 'text-red-600' : 'text-blue-600'
+                                    }`}>
+                                      {audit.discrepancy > 0 ? '+' : ''}{audit.discrepancy}
+                                    </span>
+                                  </td>
+                                  <td className="px-2 py-1">
+                                    <span className={`px-1 py-0.5 rounded text-xs ${
+                                      audit.status === 'match' ? 'bg-green-100 text-green-800' :
+                                      audit.status === 'shortage' ? 'bg-red-100 text-red-800' :
+                                      audit.status === 'surplus' ? 'bg-blue-100 text-blue-800' :
+                                      'bg-gray-100 text-gray-800'
+                                    }`}>
+                                      {audit.status}
+                                    </span>
+                                  </td>
+                                  <td className="px-2 py-1">
+                                    {audit.resolved ? (
+                                      <span className="text-green-600 text-xs">✓ Resolved</span>
+                                    ) : (
+                                      <span className="text-yellow-600 text-xs">⚠ Pending</span>
+                                    )}
+                                  </td>
+                                  <td className="px-2 py-1 max-w-xs truncate" title={audit.notes}>
+                                    {audit.notes || '-'}
+                                  </td>
+                                  <td className="px-2 py-1">
+                                    {!audit.resolved && (
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => resolveAudit(audit._id, bookId)}
+                                        className="text-xs"
+                                      >
+                                        Resolve
+                                      </Button>
+                                    )}
+                                  </td>
                             </tr>
                           ))}
                         </tbody>
                       </table>
                     </div>
+                      )}
                   </div>
-                ))}
+                  );
+                })}
               </CardContent>
             </Card>
           </TabsContent>
@@ -1846,7 +2308,7 @@ export default function LibrarianDashboard() {
                       <Card>
                         <CardContent className="p-4">
                           <div className="text-sm text-gray-600">Outstanding Fines</div>
-                          <div className="text-2xl font-bold">${stats.totalFines.toFixed(2)}</div>
+                          <div className="text-2xl font-bold">₱{stats.totalFines.toFixed(2)}</div>
                         </CardContent>
                       </Card>
                     </div>
@@ -1867,7 +2329,7 @@ export default function LibrarianDashboard() {
                           {recentFines.map((fine) => (
                             <tr key={fine._id}>
                               <td className="px-2 py-1">{fine.userId?.name || 'N/A'}</td>
-                              <td className="px-2 py-1">${fine.amount.toFixed(2)}</td>
+                              <td className="px-2 py-1">₱{fine.amount.toFixed(2)}</td>
                               <td className="px-2 py-1">{fine.reason}</td>
                               <td className="px-2 py-1">{fine.status}</td>
                               <td className="px-2 py-1">{new Date(fine.dateIssued).toLocaleDateString()}</td>
@@ -1922,19 +2384,19 @@ export default function LibrarianDashboard() {
                   <div className="p-4 border rounded-lg">
                     <h3 className="font-medium mb-4">Send Notifications</h3>
                     <div className="space-y-3">
-                      <Button className="w-full justify-start">
+                      <Button className="w-full justify-start" onClick={() => alert('Send Overdue Reminders feature coming soon!')}>
                         <MessageSquare className="w-4 h-4 mr-2" />
                         Send Overdue Reminders
                       </Button>
-                      <Button variant="outline" className="w-full justify-start">
+                      <Button variant="outline" className="w-full justify-start" onClick={() => alert('New Arrivals Announcement feature coming soon!')}>
                         <MessageSquare className="w-4 h-4 mr-2" />
                         New Arrivals Announcement
                       </Button>
-                      <Button variant="outline" className="w-full justify-start">
+                      <Button variant="outline" className="w-full justify-start" onClick={() => alert('General Announcement feature coming soon!')}>
                         <MessageSquare className="w-4 h-4 mr-2" />
                         General Announcement
                       </Button>
-                      <Button variant="outline" className="w-full justify-start">
+                      <Button variant="outline" className="w-full justify-start" onClick={() => alert('Reservation Ready feature coming soon!')}>
                         <MessageSquare className="w-4 h-4 mr-2" />
                         Reservation Ready
                       </Button>
@@ -1944,19 +2406,19 @@ export default function LibrarianDashboard() {
                   <div className="p-4 border rounded-lg">
                     <h3 className="font-medium mb-4">Quick Messages</h3>
                     <div className="space-y-3">
-                      <Button variant="outline" className="w-full justify-start">
+                      <Button variant="outline" className="w-full justify-start" onClick={() => alert('Due Date Reminders feature coming soon!')}>
                         <Clock className="w-4 h-4 mr-2" />
                         Due Date Reminders
                       </Button>
-                      <Button variant="outline" className="w-full justify-start">
-                        <DollarSign className="w-4 h-4 mr-2" />
+                      <Button variant="outline" className="w-full justify-start" onClick={() => alert('Fine Notifications feature coming soon!')}>
+                        <PesoSign className="w-4 h-4 mr-2" />
                         Fine Notifications
                       </Button>
-                      <Button variant="outline" className="w-full justify-start">
+                      <Button variant="outline" className="w-full justify-start" onClick={() => alert('Book Recommendations feature coming soon!')}>
                         <BookOpen className="w-4 h-4 mr-2" />
                         Book Recommendations
                       </Button>
-                      <Button variant="outline" className="w-full justify-start">
+                      <Button variant="outline" className="w-full justify-start" onClick={() => alert('Policy Updates feature coming soon!')}>
                         <AlertTriangle className="w-4 h-4 mr-2" />
                         Policy Updates
                       </Button>
@@ -1980,6 +2442,94 @@ export default function LibrarianDashboard() {
         book={editingBook}
         mode={bookModalMode}
       />
+
+      {/* Book View Modal */}
+      <BookViewModal
+        isOpen={showBookViewModal}
+        onClose={() => {
+          setShowBookViewModal(false);
+          setSelectedBook(null);
+        }}
+        book={selectedBook}
+        imageKey={imageKey}
+        onEdit={(book) => {
+          setShowBookViewModal(false);
+          setSelectedBook(null);
+          setEditingBook(book);
+          setBookModalMode('edit');
+          setShowBookModal(true);
+        }}
+      />
+
+      {/* Bulk Audit Dialog Overlay */}
+      <Dialog open={showBulkAudit} onOpenChange={setShowBulkAudit}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Bulk Inventory Audit</DialogTitle>
+            <DialogDescription>
+              Enter the <span className="font-semibold text-blue-700">actual count</span> for each <span className="font-semibold text-yellow-700">low stock</span> or <span className="font-semibold text-red-700">out-of-stock</span> book. Leave blank to skip a book.<br/>
+              <span className="text-xs text-gray-500">You can submit only the books you want to audit now.</span>
+            </DialogDescription>
+          </DialogHeader>
+          {bulkAuditResults ? (
+            <div>
+              <div className="mb-2 font-semibold text-lg text-gray-800 flex items-center gap-2">
+                <CheckCircle className="w-5 h-5 text-green-600" /> Success: <span className="text-green-700">{bulkAuditResults.success}</span>
+                <XCircle className="w-5 h-5 text-red-600 ml-4" /> Errors/Skipped: <span className="text-red-700">{bulkAuditResults.error}</span>
+              </div>
+              <div className="max-h-48 overflow-y-auto border rounded p-2 text-sm bg-gray-50">
+                {bulkAuditResults.details.map(({book, status, message}) => (
+                  <div key={book.id} className={"flex items-center gap-2 mb-1 " + (status === 'success' ? 'text-green-700' : 'text-red-700') }>
+                    {status === 'success' ? <CheckCircle className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
+                    <span className="font-medium">{book.title}</span>
+                    <span className="text-xs">({message})</span>
+                  </div>
+                ))}
+              </div>
+              <DialogFooter className="mt-4">
+                <DialogClose asChild>
+                  <Button>Close</Button>
+                </DialogClose>
+              </DialogFooter>
+            </div>
+          ) : (
+            <form onSubmit={e => {e.preventDefault(); handleSubmitBulkAudit();}}>
+              <div className="max-h-64 overflow-y-auto space-y-4 mb-4 divide-y divide-gray-200">
+                {books.filter(book => book.status === 'low-stock' || book.status === 'out-of-stock').length === 0 ? (
+                  <div className="text-center text-gray-500 py-8">No low stock or out-of-stock books found for bulk audit.</div>
+                ) : (
+                  books.filter(book => book.status === 'low-stock' || book.status === 'out-of-stock').map(book => (
+                    <div key={book.id} className="flex flex-col sm:flex-row items-start sm:items-center gap-2 pt-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium text-gray-900 truncate">{book.title}</div>
+                        <div className="text-xs text-gray-500">Expected: <span className="font-semibold">{book.totalCopies}</span>, Available: <span className="font-semibold">{book.availableCopies}</span>, On Loan: <span className="font-semibold">{book.currentLoans}</span></div>
+                      </div>
+                      <Input
+                        type="number"
+                        min="0"
+                        placeholder="Actual count"
+                        value={bulkAuditInputs[book.id] || ''}
+                        onChange={e => handleBulkAuditInput(book.id, e.target.value)}
+                        className="w-32 border-blue-400 focus:border-blue-600 focus:ring-2 focus:ring-blue-200"
+                        aria-label={`Actual count for ${book.title}`}
+                      />
+                    </div>
+                  ))
+                )}
+              </div>
+              <DialogFooter className="mt-4 flex-col sm:flex-row gap-2">
+                <Button type="submit" disabled={bulkAuditLoading} className="w-full sm:w-auto flex items-center justify-center">
+                  {bulkAuditLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                  {bulkAuditLoading ? 'Submitting...' : 'Submit Audits'}
+                </Button>
+                <DialogClose asChild>
+                  <Button type="button" variant="outline" disabled={bulkAuditLoading} className="w-full sm:w-auto">Cancel</Button>
+                </DialogClose>
+              </DialogFooter>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 } 

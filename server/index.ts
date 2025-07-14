@@ -5,7 +5,7 @@ import { getProfile, updateProfile, changePassword, deleteProfile } from "./rout
 import mongoose from "mongoose";
 import { register, login, forgotPassword, resetPassword, getUserSessions, revokeSession, revokeAllSessions, refreshSession, verifyTokenWithSession, requireAdmin, requireLibrarian, requireUser, uploadProfilePicture, getProfilePicture, removeProfilePicture } from "./routes/auth";
 import { getAdminStats, getUsers, createUser, updateUser, deleteUser, getBooks, createBook, updateBook, deleteBook } from "./routes/admin";
-import { getLibrarianDashboard, getLibrarianBooks, getBook, createBook as createLibrarianBook, updateBook as updateLibrarianBook, issueBook, returnBook, getLoans, getOverdueBooks, getReservations, searchUsers, getUserLoans, updateReservation, createFine, updateFine, getFines, updateBookStatus, sendNotification } from "./routes/librarian";
+import { getLibrarianDashboard, getLibrarianBooks, getBook, createBook as createLibrarianBook, updateBook as updateLibrarianBook, issueBook, returnBook, getLoans, getOverdueBooks, getReservations, searchUsers, getUserLoans, updateReservation, createFine, updateFine, getFines, updateBookStatus, sendNotification, getInventoryAudits, createInventoryAudit, resolveInventoryAudit } from "./routes/librarian";
 import { getStudentStats, getBooksForStudent, getStudentLoans, borrowBook, returnStudentBook, renewLoan, getStudentReservations, createReservation, cancelReservation, getStudentFines, getStudentNotifications, markNotificationAsRead, submitFeedback, submitBookSuggestion, getStudentProfile } from "./routes/student";
 import { searchBooks, getSearchSuggestions } from "./routes/search";
 import { getBookDetails, getAllBooks } from "./routes/books";
@@ -94,6 +94,11 @@ export function createServer() {
   app.post("/api/librarian/notifications", verifyTokenWithSession, requireLibrarian, sendNotification);
   app.get("/api/librarian/users/search", verifyTokenWithSession, requireLibrarian, searchUsers);
   app.get("/api/librarian/users/:id/loans", verifyTokenWithSession, requireLibrarian, getUserLoans);
+  
+  // Inventory audit routes
+  app.get("/api/librarian/inventory-audits", verifyTokenWithSession, requireLibrarian, getInventoryAudits);
+  app.post("/api/librarian/inventory-audits", verifyTokenWithSession, requireLibrarian, createInventoryAudit);
+  app.put("/api/librarian/inventory-audits/:id", verifyTokenWithSession, requireLibrarian, resolveInventoryAudit);
 
   // Student routes
   app.get("/api/student/stats", verifyTokenWithSession, requireUser, getStudentStats);

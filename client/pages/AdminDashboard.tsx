@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/use-auth";
 import UserAvatar from "../components/UserAvatar";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import BookFormModal from "../components/BookFormModal";
 import UserViewModal from "../components/UserViewModal";
 import UserEditModal from "../components/UserEditModal";
@@ -36,6 +36,7 @@ import {
   AlertCircle,
   XCircle as OutOfStock
 } from "lucide-react";
+import { PesoSign } from "@/components/ui/button";
 
 interface DashboardStats {
   totalUsers: number;
@@ -113,6 +114,7 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [roleFilters, setRoleFilters] = useState<Set<string>>(new Set(['admin', 'librarian', 'user']));
   const [statusFilters, setStatusFilters] = useState<Set<string>>(new Set(['available', 'low-stock', 'out-of-stock']));
+  const [imageKey, setImageKey] = useState(Date.now());
   
   // Book form modal states
   const [showBookModal, setShowBookModal] = useState(false);
@@ -176,6 +178,7 @@ export default function AdminDashboard() {
       if (booksResponse.ok) {
         const booksData = await booksResponse.json();
         setBooks(booksData.books);
+        setImageKey(Date.now()); // Refresh image cache
       }
 
     } catch (error) {
@@ -199,19 +202,23 @@ export default function AdminDashboard() {
             });
             
             if (response.ok) {
-              // Remove user from local state
+              // Immediately remove user from local state for instant UI update
               setUsers(users.filter(user => user.id !== userId));
-              toast({
-                title: "Success",
-                description: "User deleted successfully",
-              });
+              
+              // Close any open modals showing this user
+              if (selectedUser && selectedUser.id === userId) {
+                setShowUserViewModal(false);
+                setShowUserEditModal(false);
+                setSelectedUser(null);
+              }
+              
+              toast.success("User deleted successfully");
+              
+              // Refresh dashboard stats
+              await loadDashboardData();
             } else {
               const error = await response.json();
-              toast({
-                title: "Error",
-                description: error.message || "Failed to delete user",
-                variant: "destructive"
-              });
+              toast.error(error.message || "Failed to delete user");
             }
           }
           break;
@@ -234,11 +241,7 @@ export default function AdminDashboard() {
       }
     } catch (error) {
       console.error('Error handling user action:', error);
-      toast({
-        title: "Error",
-        description: "An error occurred while processing the request",
-        variant: "destructive"
-      });
+      toast.error("An error occurred while processing the request");
     }
   };
 
@@ -256,19 +259,33 @@ export default function AdminDashboard() {
             });
             
             if (response.ok) {
-              // Remove book from local state
+              const result = await response.json();
+              
+              // Immediately remove book from local state for instant UI update
               setBooks(books.filter(book => book.id !== bookId));
-              toast({
-                title: "Success",
-                description: "Book deleted successfully",
-              });
+              
+              // Close any open modals showing this book
+              if (selectedBook && selectedBook.id === bookId) {
+                setShowBookViewModal(false);
+                setSelectedBook(null);
+              }
+              
+              toast.success(`Book deleted successfully${result.cancelledReservations > 0 ? `. ${result.cancelledReservations} reservation(s) were cancelled.` : ''}`);
+              
+              // Refresh dashboard stats
+              await loadDashboardData();
             } else {
               const error = await response.json();
-              toast({
-                title: "Error",
-                description: error.message || "Failed to delete book",
-                variant: "destructive"
-              });
+              if (error.message && error.message.includes('reservation')) {
+                const reservationList = error.reservations.map((r: any) => 
+                  `- ${r.userId?.name || 'Unknown'} (${r.userId?.email || 'No email'})`
+                ).join('\n');
+                toast.error(`${error.message}\n\nActive reservations:\n${reservationList}`, {
+                  duration: 8000
+                });
+              } else {
+                toast.error(error.message || "Failed to delete book");
+              }
             }
           }
           break;
@@ -292,11 +309,7 @@ export default function AdminDashboard() {
       }
     } catch (error) {
       console.error('Error handling book action:', error);
-      toast({
-        title: "Error",
-        description: "An error occurred while processing the request",
-        variant: "destructive"
-      });
+      toast.error("An error occurred while processing the request");
     }
   };
 
@@ -329,6 +342,11 @@ export default function AdminDashboard() {
     if (!token) return;
 
     try {
+      // Ensure coverImage persists if not changed
+      let dataToSend = { ...bookData };
+      if (bookModalMode === 'edit' && editingBook?.coverImage && !bookData.coverImage) {
+        dataToSend.coverImage = editingBook.coverImage;
+      }
       const url = bookModalMode === 'add' 
         ? '/api/admin/books' 
         : `/api/admin/books/${editingBook?.id}`;
@@ -341,35 +359,44 @@ export default function AdminDashboard() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify(bookData)
+        body: JSON.stringify(dataToSend)
       });
       
       if (response.ok) {
         const result = await response.json();
-        toast({
-          title: "Success",
-          description: bookModalMode === 'add' ? 'Book added successfully!' : 'Book updated successfully!',
-        });
+        toast.success(bookModalMode === 'add' ? 'Book added successfully!' : 'Book updated successfully!');
         
-        // Refresh books list
-        loadBooks();
+        // Close modal first
         setShowBookModal(false);
         setEditingBook(null);
+        
+        // Immediately refresh all data
+        await Promise.all([
+          loadDashboardData(),
+          loadBooks()
+        ]);
+        
+        // Update image cache to show new images immediately
+        setImageKey(Date.now());
+        
+        // If we're viewing this book, update the selected book data
+        if (selectedBook && bookModalMode === 'edit' && selectedBook.id === editingBook?.id) {
+          setSelectedBook({ ...selectedBook, ...result.book });
+        }
       } else {
         const error = await response.json();
-        toast({
-          title: "Error",
-          description: error.message || "Failed to save book",
-          variant: "destructive"
-        });
+        if (error.message && error.message.includes('reservation')) {
+          toast.error(error.message, {
+            duration: 8000,
+            description: "Please handle all reservations before making this change."
+          });
+        } else {
+          toast.error(error.message || "Failed to save book");
+        }
       }
     } catch (error) {
       console.error('Error saving book:', error);
-      toast({
-        title: "Error",
-        description: "An error occurred while saving the book",
-        variant: "destructive"
-      });
+      toast.error("An error occurred while saving the book");
     }
   };
 
@@ -391,6 +418,7 @@ export default function AdminDashboard() {
       if (booksResponse.ok) {
         const booksData = await booksResponse.json();
         setBooks(booksData.books);
+        setImageKey(Date.now()); // Refresh image cache
       }
     } catch (error) {
       console.error('Error loading books:', error);
@@ -787,7 +815,7 @@ export default function AdminDashboard() {
                             <div className="text-xs text-green-600">Total Borrowed</div>
                           </div>
                           <div>
-                            <div className="text-lg font-bold text-red-600">${(user.outstandingFines || 0).toFixed(0)}</div>
+                            <div className="text-lg font-bold text-red-600">{(user.outstandingFines || 0).toFixed(0)}</div>
                             <div className="text-xs text-red-600">Fines</div>
                           </div>
                         </div>
@@ -955,59 +983,102 @@ export default function AdminDashboard() {
 
             <Card>
               <CardContent className="p-6">
-                <div className="space-y-4">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                   {filteredBooks.map((book) => (
-                    <div key={book.id} className="flex items-center justify-between p-4 border rounded-lg">
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-16 bg-gray-200 rounded flex items-center justify-center">
+                    <div key={book.id} className="group relative bg-white border border-gray-200 rounded-xl p-4 hover:shadow-lg transition-all duration-200 hover:border-blue-300">
+                      <div className="flex gap-4">
+                        {/* Enhanced Book Cover */}
+                        <div className="flex-shrink-0">
+                          <div className="w-20 h-28 bg-gradient-to-br from-gray-100 to-gray-200 rounded-lg shadow-md overflow-hidden border-2 border-gray-100 group-hover:border-blue-200 transition-colors">
                           {book.coverImage ? (
                             <img 
-                              src={book.coverImage} 
+                                src={`${book.coverImage}${book.coverImage.includes('?') ? '&' : '?'}t=${imageKey}`} 
                               alt={book.title}
-                              className="w-full h-full object-cover rounded"
+                                className="w-full h-full object-cover"
                               onError={(e) => {
                                 e.currentTarget.style.display = 'none';
                                 e.currentTarget.nextElementSibling?.classList.remove('hidden');
                               }}
                             />
                           ) : (
-                            <BookOpen className="w-6 h-6 text-gray-400" />
+                              <div className="w-full h-full bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
+                                <BookOpen className="w-8 h-8 text-gray-400" />
+                              </div>
+                          )}
+                            {!book.coverImage && (
+                              <div className="hidden w-full h-full bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
+                                <BookOpen className="w-8 h-8 text-gray-400" />
+                        </div>
                           )}
                         </div>
-                        <div>
-                          <p className="font-medium">{book.title}</p>
-                          <p className="text-sm text-gray-600">by {book.author}</p>
-                          <p className="text-xs text-gray-500">
-                            ISBN: {book.isbn} | Genre: {book.genre}
-                            {book.publisher && ` | Publisher: ${book.publisher}`}
-                            {book.publishedYear && ` | ${book.publishedYear}`}
-                          </p>
-                          {book.location && (
-                            <p className="text-xs text-gray-500">Location: {book.location}</p>
-                          )}
                         </div>
-                        <div className="flex flex-col gap-1">
-                          <Badge className={getStatusColor(book.status)}>
-                            {book.status}
+
+                        {/* Book Information */}
+                        <div className="flex-1 min-w-0">
+                          <div className="mb-2">
+                            <h3 className="font-semibold text-gray-900 text-lg leading-tight mb-1 group-hover:text-blue-600 transition-colors">
+                              {book.title}
+                            </h3>
+                            <p className="text-sm text-gray-600 mb-2">by {book.author}</p>
+                          </div>
+
+                          {/* Status and Genre */}
+                          <div className="flex flex-wrap gap-1 mb-3">
+                            <Badge className={`${getStatusColor(book.status)} text-xs`}>
+                              {book.status?.replace('-', ' ')}
+                            </Badge>
+                            <Badge variant="outline" className="text-xs">
+                              {book.genre}
                           </Badge>
                           {book.pendingReservations && book.pendingReservations > 0 && (
-                            <Badge className="bg-purple-100 text-purple-800 text-xs">
+                              <Badge className="bg-purple-100 text-purple-800 text-xs border-purple-200">
                               {book.pendingReservations} reserved
                             </Badge>
                           )}
                         </div>
-                        <div className="text-sm text-gray-600">
-                          <div>Available: {book.availableCopies}/{book.totalCopies}</div>
+
+                          {/* Book Details */}
+                          <div className="space-y-1 mb-3">
+                            <p className="text-xs text-gray-500">
+                              <span className="font-medium">ISBN:</span> {book.isbn}
+                            </p>
+                            {book.publisher && (
+                              <p className="text-xs text-gray-500">
+                                <span className="font-medium">Publisher:</span> {book.publisher}
+                              </p>
+                            )}
+                            {book.publishedYear && (
+                              <p className="text-xs text-gray-500">
+                                <span className="font-medium">Year:</span> {book.publishedYear}
+                              </p>
+                            )}
+                            {book.location && (
+                              <p className="text-xs text-gray-500">
+                                <span className="font-medium">Location:</span> {book.location}
+                              </p>
+                            )}
+                          </div>
+
+                          {/* Availability */}
+                          <div className="flex items-center justify-between">
+                            <div className="text-sm">
+                              <span className="font-medium text-gray-900">{book.availableCopies}</span>
+                              <span className="text-gray-500"> of {book.totalCopies} available</span>
                           {book.activeLoans && book.activeLoans > 0 && (
-                            <div className="text-xs text-blue-600">{book.activeLoans} on loan</div>
+                                <span className="text-blue-600 text-xs block">{book.activeLoans} on loan</span>
                           )}
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => handleBookAction('view', book.id)}
+                            className="h-8 w-8 p-0"
+                            title="View Details"
                         >
                           <Eye className="w-4 h-4" />
                         </Button>
@@ -1015,6 +1086,8 @@ export default function AdminDashboard() {
                           variant="outline"
                           size="sm"
                           onClick={() => handleBookAction('edit', book.id)}
+                            className="h-8 w-8 p-0"
+                            title="Edit Book"
                         >
                           <Edit className="w-4 h-4" />
                         </Button>
@@ -1022,10 +1095,12 @@ export default function AdminDashboard() {
                           variant="outline"
                           size="sm"
                           onClick={() => handleBookAction('delete', book.id)}
-                          className="text-red-600 hover:text-red-700"
+                            className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:border-red-300"
+                            title="Delete Book"
                         >
                           <Trash2 className="w-4 h-4" />
                         </Button>
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -1104,11 +1179,11 @@ export default function AdminDashboard() {
                   <div className="p-4 border rounded-lg">
                     <h3 className="font-medium mb-2">System Configuration</h3>
                     <div className="flex gap-2">
-                      <Button variant="outline" size="sm">
+                      <Button variant="outline" size="sm" onClick={() => alert('General Settings feature coming soon!')}>
                         <Settings className="w-4 h-4 mr-2" />
                         General Settings
                       </Button>
-                      <Button variant="outline" size="sm">
+                      <Button variant="outline" size="sm" onClick={() => alert('Activity Logs feature coming soon!')}>
                         <Activity className="w-4 h-4 mr-2" />
                         Activity Logs
                       </Button>
@@ -1151,8 +1226,17 @@ export default function AdminDashboard() {
           setSelectedUser(null);
         }}
         user={selectedUser}
-        onSave={(updatedUser) => {
+        onSave={async (updatedUser) => {
+          // Optimistically update the user in the local state immediately
           setUsers(users.map(user => user.id === updatedUser.id ? updatedUser : user));
+          
+          // If we're viewing this user, update the selected user data too
+          if (selectedUser && selectedUser.id === updatedUser.id) {
+            setSelectedUser(updatedUser);
+          }
+          
+          // Refresh dashboard stats in case role changes affected counts
+          await loadDashboardData();
         }}
       />
 
@@ -1164,6 +1248,14 @@ export default function AdminDashboard() {
           setSelectedBook(null);
         }}
         book={selectedBook}
+        imageKey={imageKey}
+        onEdit={(book) => {
+          setShowBookViewModal(false);
+          setSelectedBook(null);
+          setEditingBook(book);
+          setBookModalMode('edit');
+          setShowBookModal(true);
+        }}
       />
     </div>
   );

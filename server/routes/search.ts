@@ -7,14 +7,16 @@ export async function searchBooks(req: Request, res: Response) {
   try {
     const {
       q = '', // Basic search query
+      refineQuery = '', // Search within results
       title = '',
       author = '',
-      genre = '',
+      genre = '', // Can be array for multiple genres
       language = '',
       fromDate = '',
       toDate = '',
       isbn = '',
-      filter = 'all', // all, available, new, popular
+      filter = 'all', // all, available, new, popular, download, online
+      sortBy = 'relevance', // relevance, title, author, date
       page = 1,
       limit = 20
     } = req.query;
@@ -26,30 +28,50 @@ export async function searchBooks(req: Request, res: Response) {
     // Build search query
     const searchTerms = [];
     
+    // Main search query
     if (q) {
       searchTerms.push(
         { title: { $regex: q, $options: 'i' } },
         { author: { $regex: q, $options: 'i' } },
         { categories: { $in: [new RegExp(q as string, 'i')] } },
         { genre: { $regex: q, $options: 'i' } },
-        { isbn: { $regex: q, $options: 'i' } }
+        { isbn: { $regex: q, $options: 'i' } },
+        { description: { $regex: q, $options: 'i' } }
+      );
+    }
+
+    // Refine search query (search within results)
+    if (refineQuery) {
+      searchTerms.push(
+        { title: { $regex: refineQuery, $options: 'i' } },
+        { author: { $regex: refineQuery, $options: 'i' } },
+        { categories: { $in: [new RegExp(refineQuery as string, 'i')] } },
+        { description: { $regex: refineQuery, $options: 'i' } }
       );
     }
 
     if (title) {
-      searchTerms.push({ title: { $regex: title, $options: 'i' } });
+      // Title search should be more specific and have higher priority
+      query.title = { $regex: title, $options: 'i' };
     }
 
     if (author) {
       searchTerms.push({ author: { $regex: author, $options: 'i' } });
     }
 
-    if (genre && genre !== 'All fields') {
-      searchTerms.push({ genre: { $regex: genre, $options: 'i' } });
+    // Handle multiple genres
+    const genres = Array.isArray(genre) ? genre : (genre ? [genre] : []);
+    if (genres.length > 0 && !genres.includes('All fields')) {
+      const genreConditions = genres.map(g => ({ genre: { $regex: g, $options: 'i' } }));
+      if (genreConditions.length === 1) {
+        query.genre = genreConditions[0].genre;
+      } else {
+        query.$or = query.$or ? query.$or.concat(genreConditions) : genreConditions;
+      }
     }
 
-    if (language && language !== 'All Languages') {
-      searchTerms.push({ language: { $regex: language, $options: 'i' } });
+    if (language && language !== 'All Languages' && language !== 'Any Language') {
+      query.language = { $regex: language, $options: 'i' };
     }
 
     if (isbn) {
@@ -65,12 +87,44 @@ export async function searchBooks(req: Request, res: Response) {
       if (toDate) {
         dateQuery.$lte = parseInt(toDate as string);
       }
-      searchTerms.push({ publishedYear: dateQuery });
+      query.publishedYear = dateQuery;
     }
 
-    // Combine search terms
+    // Combine search terms with AND logic if both main query and refine query exist
     if (searchTerms.length > 0) {
-      query.$or = searchTerms;
+      if (q && refineQuery) {
+        // Both main search and refine search - combine with AND
+        const mainSearchTerms = [];
+        const refineSearchTerms = [];
+        
+        if (q) {
+          mainSearchTerms.push(
+            { title: { $regex: q, $options: 'i' } },
+            { author: { $regex: q, $options: 'i' } },
+            { categories: { $in: [new RegExp(q as string, 'i')] } },
+            { genre: { $regex: q, $options: 'i' } },
+            { isbn: { $regex: q, $options: 'i' } },
+            { description: { $regex: q, $options: 'i' } }
+          );
+        }
+        
+        if (refineQuery) {
+          refineSearchTerms.push(
+            { title: { $regex: refineQuery, $options: 'i' } },
+            { author: { $regex: refineQuery, $options: 'i' } },
+            { categories: { $in: [new RegExp(refineQuery as string, 'i')] } },
+            { description: { $regex: refineQuery, $options: 'i' } }
+          );
+        }
+        
+        query.$and = [
+          { $or: mainSearchTerms },
+          { $or: refineSearchTerms }
+        ];
+      } else {
+        // Only one type of search - use OR
+        query.$or = query.$or ? query.$or.concat(searchTerms) : searchTerms;
+      }
     }
 
     // Apply filters
@@ -80,18 +134,55 @@ export async function searchBooks(req: Request, res: Response) {
         break;
       case 'new':
         query.addedDate = { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) };
-        sort = { addedDate: -1 };
         break;
       case 'popular':
-        sort = { totalCopies: -1 };
+        // Keep existing sort logic
+        break;
+      case 'download':
+        query.hasDownload = true;
+        break;
+      case 'online':
+        query.hasReadOnline = true;
         break;
     }
+
+    // Apply sorting
+    switch (sortBy) {
+      case 'title':
+        sort = { title: 1 };
+        break;
+      case 'author':
+        sort = { author: 1 };
+        break;
+      case 'date':
+        sort = { publishedYear: -1 };
+        break;
+      case 'relevance':
+      default:
+        // For relevance, prioritize exact matches in title, then author
+        if (q || refineQuery) {
+          sort = { title: 1 }; // Could be enhanced with text score
+        } else {
+          sort = { title: 1 };
+        }
+        break;
+    }
+
+    // Override sort for specific filters
+    if (filter === 'new') {
+      sort = { addedDate: -1 };
+    } else if (filter === 'popular') {
+      sort = { totalCopies: -1 };
+    }
+
+    console.log('Search query:', JSON.stringify(query, null, 2));
+    console.log('Sort:', sort);
 
     const books = await Book.find(query)
       .sort(sort)
       .skip(skip)
       .limit(parseInt(limit as string))
-      .select('title author isbn genre publishedYear publisher description coverImage totalCopies availableCopies categories language pages location addedDate');
+      .select('title author isbn genre publishedYear publisher description coverImage totalCopies availableCopies categories language pages location addedDate hasDownload hasReadOnline');
 
     const total = await Book.countDocuments(query);
 
@@ -103,7 +194,13 @@ export async function searchBooks(req: Request, res: Response) {
         total,
         pages: Math.ceil(total / parseInt(limit as string))
       },
-      query: req.query
+      query: req.query,
+      appliedFilters: {
+        genres: genres,
+        language: language !== 'Any Language' ? language : null,
+        accessType: filter !== 'all' ? filter : null,
+        sortBy: sortBy
+      }
     });
   } catch (error) {
     console.error('Search error:', error);

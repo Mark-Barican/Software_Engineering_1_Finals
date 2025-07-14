@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Loader2, Mail, X, ArrowLeft } from "lucide-react";
+import { Loader2, Mail, ArrowLeft } from "lucide-react";
 
 interface ForgotPasswordModalProps {
   isOpen: boolean;
@@ -67,16 +67,14 @@ export default function ForgotPasswordModal({ isOpen, onClose, onBackToLogin }: 
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black bg-opacity-50 pt-16 overflow-y-auto">
-      <div className="bg-white rounded-lg w-full max-w-md mx-4 relative">
-        {/* Close button */}
-        <button
-          onClick={handleClose}
-          className="absolute top-4 right-4 text-black hover:text-gray-600"
-        >
-          <X size={24} />
-        </button>
-
+    <div 
+      className="fixed inset-0 z-50 flex items-start justify-center bg-black bg-opacity-50 pt-16 overflow-y-auto"
+      onClick={handleClose}
+    >
+      <div 
+        className="bg-white rounded-lg w-full max-w-md mx-4 relative"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="p-12">
           {!success ? (
             <>
