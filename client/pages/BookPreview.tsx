@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { User, HelpCircle, Download, Bookmark, Quote } from "lucide-react";
+import { User, HelpCircle, Bookmark, Quote, Calendar, MapPin, BookText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "../hooks/use-auth";
 import LoginModal from "../components/LoginModal";
@@ -16,9 +16,9 @@ export default function BookPreview() {
   const handleCloseLoginModal = () => setIsLoginModalOpen(false);
   const handleCloseRegisterModal = () => setIsRegisterModalOpen(false);
 
-  const handleDownload = () => {
-    // Download functionality would be implemented here
-    alert("Download functionality would be implemented here");
+  const handleSave = () => {
+    // Save functionality would be implemented here
+    console.log("Save functionality would be implemented here");
   };
 
   return (
@@ -107,11 +107,11 @@ export default function BookPreview() {
             {/* Action Buttons */}
             <div className="w-full max-w-sm space-y-4">
               <Button 
-                onClick={handleDownload}
+                onClick={handleSave}
                 className="w-full h-20 bg-brand-orange hover:bg-brand-orange-light text-white rounded-sm"
               >
-                <Download size={32} className="mr-4" />
-                <span className="text-4xl font-abhaya">Download</span>
+                <Bookmark size={32} className="mr-4" />
+                <span className="text-4xl font-abhaya">Save</span>
               </Button>
 
               <Button

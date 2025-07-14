@@ -2,7 +2,11 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/use-auth";
 import UserAvatar from "../components/UserAvatar";
+import { toast } from "@/hooks/use-toast";
 import BookFormModal from "../components/BookFormModal";
+import UserViewModal from "../components/UserViewModal";
+import UserEditModal from "../components/UserEditModal";
+import BookViewModal from "../components/BookViewModal";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -115,6 +119,15 @@ export default function AdminDashboard() {
   const [editingBook, setEditingBook] = useState<any>(null);
   const [bookModalMode, setBookModalMode] = useState<'add' | 'edit'>('add');
 
+  // User modal states
+  const [showUserViewModal, setShowUserViewModal] = useState(false);
+  const [showUserEditModal, setShowUserEditModal] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<any>(null);
+
+  // Book view modal states
+  const [showBookViewModal, setShowBookViewModal] = useState(false);
+  const [selectedBook, setSelectedBook] = useState<any>(null);
+
   useEffect(() => {
     // Check if user is admin
     if (!user || user.role !== 'admin') {
@@ -188,27 +201,44 @@ export default function AdminDashboard() {
             if (response.ok) {
               // Remove user from local state
               setUsers(users.filter(user => user.id !== userId));
-              alert('User deleted successfully');
+              toast({
+                title: "Success",
+                description: "User deleted successfully",
+              });
             } else {
               const error = await response.json();
-              alert(`Error: ${error.message}`);
+              toast({
+                title: "Error",
+                description: error.message || "Failed to delete user",
+                variant: "destructive"
+              });
             }
           }
           break;
         case 'view':
-          // TODO: Implement user view modal
-          alert(`View user details for ${userId}`);
+          const userToView = users.find(user => user.id === userId);
+          if (userToView) {
+            setSelectedUser(userToView);
+            setShowUserViewModal(true);
+          }
           break;
         case 'edit':
-          // TODO: Implement user edit modal
-          alert(`Edit user ${userId}`);
+          const userToEdit = users.find(user => user.id === userId);
+          if (userToEdit) {
+            setSelectedUser(userToEdit);
+            setShowUserEditModal(true);
+          }
           break;
         default:
           console.log(`${action} user ${userId}`);
       }
     } catch (error) {
       console.error('Error handling user action:', error);
-      alert('An error occurred while processing the request');
+      toast({
+        title: "Error",
+        description: "An error occurred while processing the request",
+        variant: "destructive"
+      });
     }
   };
 
@@ -228,16 +258,26 @@ export default function AdminDashboard() {
             if (response.ok) {
               // Remove book from local state
               setBooks(books.filter(book => book.id !== bookId));
-              alert('Book deleted successfully');
+              toast({
+                title: "Success",
+                description: "Book deleted successfully",
+              });
             } else {
               const error = await response.json();
-              alert(`Error: ${error.message}`);
+              toast({
+                title: "Error",
+                description: error.message || "Failed to delete book",
+                variant: "destructive"
+              });
             }
           }
           break;
         case 'view':
-          // TODO: Implement book view modal
-          alert(`View book details for ${bookId}`);
+          const bookToView = books.find(book => book.id === bookId);
+          if (bookToView) {
+            setSelectedBook(bookToView);
+            setShowBookViewModal(true);
+          }
           break;
         case 'edit':
           const bookToEdit = books.find(book => book.id === bookId);
@@ -252,7 +292,11 @@ export default function AdminDashboard() {
       }
     } catch (error) {
       console.error('Error handling book action:', error);
-      alert('An error occurred while processing the request');
+      toast({
+        title: "Error",
+        description: "An error occurred while processing the request",
+        variant: "destructive"
+      });
     }
   };
 
@@ -302,7 +346,10 @@ export default function AdminDashboard() {
       
       if (response.ok) {
         const result = await response.json();
-        alert(bookModalMode === 'add' ? 'Book added successfully!' : 'Book updated successfully!');
+        toast({
+          title: "Success",
+          description: bookModalMode === 'add' ? 'Book added successfully!' : 'Book updated successfully!',
+        });
         
         // Refresh books list
         loadBooks();
@@ -310,11 +357,19 @@ export default function AdminDashboard() {
         setEditingBook(null);
       } else {
         const error = await response.json();
-        alert(`Error: ${error.message}`);
+        toast({
+          title: "Error",
+          description: error.message || "Failed to save book",
+          variant: "destructive"
+        });
       }
     } catch (error) {
       console.error('Error saving book:', error);
-      alert('An error occurred while saving the book');
+      toast({
+        title: "Error",
+        description: "An error occurred while saving the book",
+        variant: "destructive"
+      });
     }
   };
 
@@ -1080,6 +1135,39 @@ export default function AdminDashboard() {
         onSave={saveBook}
         book={editingBook}
         mode={bookModalMode}
+      />
+
+      {/* User View Modal */}
+      <UserViewModal
+        isOpen={showUserViewModal}
+        onClose={() => {
+          setShowUserViewModal(false);
+          setSelectedUser(null);
+        }}
+        user={selectedUser}
+      />
+
+      {/* User Edit Modal */}
+      <UserEditModal
+        isOpen={showUserEditModal}
+        onClose={() => {
+          setShowUserEditModal(false);
+          setSelectedUser(null);
+        }}
+        user={selectedUser}
+        onSave={(updatedUser) => {
+          setUsers(users.map(user => user.id === updatedUser.id ? updatedUser : user));
+        }}
+      />
+
+      {/* Book View Modal */}
+      <BookViewModal
+        isOpen={showBookViewModal}
+        onClose={() => {
+          setShowBookViewModal(false);
+          setSelectedBook(null);
+        }}
+        book={selectedBook}
       />
     </div>
   );

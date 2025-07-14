@@ -6,101 +6,60 @@ import {
   ChevronDown,
   User,
   HelpCircle,
-  Download,
   Bookmark,
   Quote,
   BookOpen,
   ChevronUp,
+  Eye,
+  Calendar,
+  MapPin,
+  BookText,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import LoginModal from "../components/LoginModal";
 import RegisterModal from "../components/RegisterModal";
 
-// Mock search results data matching the Figma design
-const searchResults = [
-  {
-    id: 1,
-    title: "Sometimes a Great Notion",
-    author: "Ken Kesey",
-    image:
-      "https://cdn.builder.io/api/v1/image/assets/TEMP/2317efad8487bf8bdeee4fcc13e8f8a64e8dc306?width=334",
-    hasDownload: true,
-    hasReadOnline: false,
-  },
-  {
-    id: 2,
-    title: "The Great Divorce",
-    author: "C.S. Lewis",
-    image:
-      "https://cdn.builder.io/api/v1/image/assets/TEMP/79b68601f2a8971604c71ff5cd5cebeddd29f4bf?width=333",
-    hasDownload: true,
-    hasReadOnline: false,
-  },
-  {
-    id: 3,
-    title: "The Great Wall of China",
-    author: "Franz Kafka",
-    image:
-      "https://cdn.builder.io/api/v1/image/assets/TEMP/bda1bead17f9d868a5a74ec57185e8d880dd4105?width=329",
-    hasDownload: true,
-    hasReadOnline: false,
-  },
-  {
-    id: 4,
-    title: "The Great Depression and the Great Recession",
-    author: "F. Scott Fitzgerald",
-    image:
-      "https://cdn.builder.io/api/v1/image/assets/TEMP/434dedace7c7d57369634b25533ff8274338c542?width=338",
-    hasDownload: false,
-    hasReadOnline: true,
-  },
-  {
-    id: 5,
-    title: "The Great Gatsby",
-    author: "Harold James",
-    image:
-      "https://cdn.builder.io/api/v1/image/assets/TEMP/4d1e82e2e44be4f6344a8edb761420ae9581ab72?width=324",
-    hasDownload: false,
-    hasReadOnline: true,
-  },
-  {
-    id: 6,
-    title: "The Great Shark Hunt",
-    author: "Hunter S. Thompson",
-    image:
-      "https://cdn.builder.io/api/v1/image/assets/TEMP/895a624e5785be40c895996d23ad5404db0da5ca?width=354",
-    hasDownload: false,
-    hasReadOnline: true,
-  },
-  {
-    id: 7,
-    title: "Great Jones Street",
-    author: "Don DeLilo",
-    image:
-      "https://cdn.builder.io/api/v1/image/assets/TEMP/8c136e6dad01596121f5e87d520301d65870097c?width=356",
-    hasDownload: false,
-    hasReadOnline: true,
-  },
-  {
-    id: 8,
-    title: "The Great Train Robbery",
-    author: "Michael Crichton",
-    image:
-      "https://cdn.builder.io/api/v1/image/assets/TEMP/a30313d09ecd7461f17905836ed57d82380addaa?width=366",
-    hasDownload: false,
-    hasReadOnline: true,
-  },
-];
+// Book interface
+interface Book {
+  _id: string;
+  title: string;
+  author: string;
+  coverImage?: string;
+  description?: string;
+  genre: string;
+  publishedYear: number;
+  publisher: string;
+  isbn: string;
+  availableCopies: number;
+  totalCopies: number;
+  status: string;
+  location?: string;
+}
+
+interface SearchResponse {
+  books: Book[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    pages: number;
+  };
+}
 
 export default function SearchResults() {
   const [searchParams] = useSearchParams();
-  const { user, loading } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const query = searchParams.get("q") || "";
   const [refineQuery, setRefineQuery] = useState("");
+  const [books, setBooks] = useState<Book[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [totalResults, setTotalResults] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
   const [expandedSections, setExpandedSections] = useState({
     searchWithin: false,
     contentType: false,
@@ -117,6 +76,35 @@ export default function SearchResults() {
     researchReports: false,
   });
 
+  // Load search results
+  useEffect(() => {
+    if (query) {
+      performSearch();
+    }
+  }, [query, currentPage]);
+
+  const performSearch = async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({
+        q: query,
+        page: currentPage.toString(),
+        limit: '20'
+      });
+
+      const response = await fetch(`/api/search?${params}`);
+      if (response.ok) {
+        const data: SearchResponse = await response.json();
+        setBooks(data.books);
+        setTotalResults(data.pagination.total);
+      }
+    } catch (error) {
+      console.error('Search error:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const toggleSection = (section: keyof typeof expandedSections) => {
     setExpandedSections((prev) => ({
       ...prev,
@@ -129,19 +117,30 @@ export default function SearchResults() {
   const handleCloseLoginModal = () => setIsLoginModalOpen(false);
   const handleCloseRegisterModal = () => setIsRegisterModalOpen(false);
 
-  const handleDownload = (bookTitle: string) => {
-    alert(`Download functionality for "${bookTitle}" would be implemented here`);
+  const handleSave = (book: Book) => {
+    // TODO: Implement save functionality
+    console.log('Save book:', book.title);
   };
 
-  const handleReadOnline = (bookTitle: string) => {
-    alert(`Read online functionality for "${bookTitle}" would be implemented here`);
+  const handleCite = (book: Book) => {
+    // TODO: Implement citation functionality
+    console.log('Cite book:', book.title);
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'available': return 'bg-green-100 text-green-800';
+      case 'low-stock': return 'bg-yellow-100 text-yellow-800';
+      case 'out-of-stock': return 'bg-red-100 text-red-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
   };
 
   return (
     <div className="min-h-screen bg-white">
       {/* Header */}
       <div className="border-b border-brand-border-light bg-white">
-        {!user && !loading && (
+        {!user && !authLoading && (
           <div className="flex items-center justify-center py-3 border-b border-brand-border-light">
             <div className="flex items-center gap-2">
               <span className="text-2xl font-alkalami">
@@ -199,29 +198,17 @@ export default function SearchResults() {
                 onClick={() => toggleSection("searchWithin")}
                 className="flex items-center justify-between w-full p-4 bg-transparent border-0"
               >
-                <span className="text-xl font-afacad font-semibold text-amber-900 uppercase tracking-wide">
-                  Search Within Results
-                </span>
-                {expandedSections.searchWithin ? (
-                  <ChevronUp size={16} className="text-white" />
-                ) : (
-                  <ChevronDown size={16} className="text-white" />
-                )}
+                <span className="text-2xl font-abhaya text-amber-900">Search Within Results</span>
+                {expandedSections.searchWithin ? <ChevronUp size={24} /> : <ChevronDown size={24} />}
               </button>
               {expandedSections.searchWithin && (
-                <div className="mt-2">
-                  <div className="relative">
-                    <Input
-                      type="text"
-                      value={refineQuery}
-                      onChange={(e) => setRefineQuery(e.target.value)}
-                      className="w-full pl-4 pr-12 py-3 border border-gray-400 rounded-sm"
-                    />
-                    <Search
-                      className="absolute right-4 top-1/2 transform -translate-y-1/2"
-                      size={20}
-                    />
-                  </div>
+                <div className="mt-4">
+                  <Input
+                    placeholder="Search within results..."
+                    value={refineQuery}
+                    onChange={(e) => setRefineQuery(e.target.value)}
+                    className="w-full"
+                  />
                 </div>
               )}
             </div>
@@ -232,76 +219,53 @@ export default function SearchResults() {
                 onClick={() => toggleSection("contentType")}
                 className="flex items-center justify-between w-full p-4 bg-transparent border-0"
               >
-                <span className="text-xl font-afacad font-semibold text-amber-900 uppercase tracking-wide">
-                  Content Type
-                </span>
-                {expandedSections.contentType ? (
-                  <ChevronUp size={16} className="text-white" />
-                ) : (
-                  <ChevronDown size={16} className="text-white" />
-                )}
+                <span className="text-2xl font-abhaya text-amber-900">Content Type</span>
+                {expandedSections.contentType ? <ChevronUp size={24} /> : <ChevronDown size={24} />}
               </button>
               {expandedSections.contentType && (
-                <div className="mt-4 ml-4 space-y-4">
-                  <p className="text-xl font-afacad text-gray-700 mb-4">
-                    Academic content:
-                  </p>
-                  <div className="space-y-3">
-                    <div className="flex items-center space-x-3">
+                <div className="mt-4 space-y-3">
+                  {Object.entries(contentTypes).map(([key, checked]) => (
+                    <label key={key} className="flex items-center gap-3">
                       <Checkbox
-                        id="journals"
-                        checked={contentTypes.journals}
+                        checked={checked}
                         onCheckedChange={(checked) =>
-                          setContentTypes((prev) => ({
-                            ...prev,
-                            journals: !!checked,
-                          }))
+                          setContentTypes(prev => ({ ...prev, [key]: checked as boolean }))
                         }
                       />
-                      <Label
-                        htmlFor="journals"
-                        className="text-xl font-afacad text-gray-700"
-                      >
-                        Journals (4,530,883)
-                      </Label>
+                      <span className="text-lg font-abhaya text-amber-900 capitalize">
+                        {key.replace(/([A-Z])/g, ' $1').trim()}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Language */}
+            <div className="mb-6">
+              <button
+                onClick={() => toggleSection("language")}
+                className="flex items-center justify-between w-full p-4 bg-transparent border-0"
+              >
+                <span className="text-2xl font-abhaya text-amber-900">Language</span>
+                {expandedSections.language ? <ChevronUp size={24} /> : <ChevronDown size={24} />}
+              </button>
+              {expandedSections.language && (
+                <div className="mt-4">
+                  <RadioGroup value="english" className="space-y-3">
+                    <div className="flex items-center space-x-3">
+                      <RadioGroupItem value="english" id="english" />
+                      <Label htmlFor="english" className="text-lg font-abhaya text-amber-900">English</Label>
                     </div>
                     <div className="flex items-center space-x-3">
-                      <Checkbox
-                        id="bookChapters"
-                        checked={contentTypes.bookChapters}
-                        onCheckedChange={(checked) =>
-                          setContentTypes((prev) => ({
-                            ...prev,
-                            bookChapters: !!checked,
-                          }))
-                        }
-                      />
-                      <Label
-                        htmlFor="bookChapters"
-                        className="text-xl font-afacad text-gray-700"
-                      >
-                        Book Chapters (1,198,581)
-                      </Label>
+                      <RadioGroupItem value="spanish" id="spanish" />
+                      <Label htmlFor="spanish" className="text-lg font-abhaya text-amber-900">Spanish</Label>
                     </div>
                     <div className="flex items-center space-x-3">
-                      <Checkbox
-                        id="researchReports"
-                        checked={contentTypes.researchReports}
-                        onCheckedChange={(checked) =>
-                          setContentTypes((prev) => ({
-                            ...prev,
-                            researchReports: !!checked,
-                          }))
-                        }
-                      />
-                      <Label
-                        htmlFor="researchReports"
-                        className="text-xl font-afacad text-gray-700"
-                      >
-                        Research Reports (46,332)
-                      </Label>
+                      <RadioGroupItem value="french" id="french" />
+                      <Label htmlFor="french" className="text-lg font-abhaya text-amber-900">French</Label>
                     </div>
-                  </div>
+                  </RadioGroup>
                 </div>
               )}
             </div>
@@ -312,161 +276,184 @@ export default function SearchResults() {
                 onClick={() => toggleSection("date")}
                 className="flex items-center justify-between w-full p-4 bg-transparent border-0"
               >
-                <span className="text-xl font-afacad font-semibold text-gray-700 uppercase tracking-wide">
-                  Date
-                </span>
-                <HelpCircle size={24} className="text-gray-700 ml-2" />
-                {expandedSections.date ? (
-                  <ChevronDown size={16} className="text-black ml-auto" />
-                ) : (
-                  <ChevronDown size={16} className="text-black ml-auto" />
-                )}
+                <span className="text-2xl font-abhaya text-amber-900">Date</span>
+                {expandedSections.date ? <ChevronUp size={24} /> : <ChevronDown size={24} />}
               </button>
-            </div>
-
-            {/* Language */}
-            <div className="mb-6">
-              <button
-                onClick={() => toggleSection("language")}
-                className="flex items-center justify-between w-full p-4 bg-transparent border-0"
-              >
-                <span className="text-xl font-afacad font-semibold text-gray-700 uppercase tracking-wide">
-                  Language
-                </span>
-                {expandedSections.language ? (
-                  <ChevronDown size={16} className="text-black" />
-                ) : (
-                  <ChevronDown size={16} className="text-black" />
-                )}
-              </button>
+              {expandedSections.date && (
+                <div className="mt-4 space-y-3">
+                  <div className="flex items-center space-x-3">
+                    <RadioGroupItem value="all" id="all-dates" />
+                    <Label htmlFor="all-dates" className="text-lg font-abhaya text-amber-900">All Dates</Label>
+                  </div>
+                  <div className="flex items-center space-x-3">
+                    <RadioGroupItem value="last-year" id="last-year" />
+                    <Label htmlFor="last-year" className="text-lg font-abhaya text-amber-900">Last Year</Label>
+                  </div>
+                  <div className="flex items-center space-x-3">
+                    <RadioGroupItem value="last-5-years" id="last-5-years" />
+                    <Label htmlFor="last-5-years" className="text-lg font-abhaya text-amber-900">Last 5 Years</Label>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Access Type */}
             <div className="mb-6">
-              <h3 className="text-xl font-afacad font-semibold text-gray-700 uppercase tracking-wide mb-4">
-                Access Type
-              </h3>
-              <RadioGroup
-                value={accessType}
-                onValueChange={setAccessType}
-                className="space-y-4"
+              <button
+                onClick={() => toggleSection("accessType")}
+                className="flex items-center justify-between w-full p-4 bg-transparent border-0"
               >
-                <div className="flex items-center space-x-3">
-                  <RadioGroupItem
-                    value="everything"
-                    id="everything"
-                    className="w-4 h-4"
-                  />
-                  <Label
-                    htmlFor="everything"
-                    className="text-xl font-afacad text-black"
-                  >
-                    Everything
-                  </Label>
+                <span className="text-2xl font-abhaya text-amber-900">Access Type</span>
+                {expandedSections.accessType ? <ChevronUp size={24} /> : <ChevronDown size={24} />}
+              </button>
+              {expandedSections.accessType && (
+                <div className="mt-4">
+                  <RadioGroup value={accessType} onValueChange={setAccessType} className="space-y-3">
+                    <div className="flex items-center space-x-3">
+                      <RadioGroupItem value="everything" id="everything" />
+                      <Label htmlFor="everything" className="text-lg font-abhaya text-amber-900">Everything</Label>
+                    </div>
+                    <div className="flex items-center space-x-3">
+                      <RadioGroupItem value="available" id="available" />
+                      <Label htmlFor="available" className="text-lg font-abhaya text-amber-900">Available</Label>
+                    </div>
+                    <div className="flex items-center space-x-3">
+                      <RadioGroupItem value="new" id="new" />
+                      <Label htmlFor="new" className="text-lg font-abhaya text-amber-900">New</Label>
+                    </div>
+                  </RadioGroup>
                 </div>
-                <div className="text-xl font-afacad text-gray-600 ml-7 leading-tight">
-                  See all results, including content you
-                  <br />
-                  cannot download or read online
-                </div>
-                <div className="flex items-center space-x-3 mt-6">
-                  <RadioGroupItem
-                    value="accessible"
-                    id="accessible"
-                    className="w-4 h-4"
-                  />
-                  <Label
-                    htmlFor="accessible"
-                    className="text-xl font-afacad text-black"
-                  >
-                    Content I can access
-                  </Label>
-                </div>
-              </RadioGroup>
+              )}
             </div>
           </div>
         </div>
 
         {/* Main Content */}
-        <div className="flex-1 p-6">
-          {/* Sort Controls */}
-          <div className="flex justify-end mb-6">
-            <button className="flex items-center gap-2 px-4 py-2 border border-brand-border-light rounded-sm">
-              <span className="font-abhaya text-base">Sort by: Relevance</span>
-              <ChevronDown size={24} />
-            </button>
+        <div className="flex-1 p-8">
+          {/* Search Results Header */}
+          <div className="mb-8">
+            <h1 className="text-4xl font-abhaya text-black mb-4">
+              Search Results for "{query}"
+            </h1>
+            <p className="text-lg text-gray-600">
+              {loading ? 'Searching...' : `${totalResults} results found`}
+            </p>
           </div>
 
-          {/* Results Grid */}
-          <div className="grid gap-8">
-            {searchResults.map((book, index) => (
-              <div key={book.id} className="flex gap-6">
-                {/* Book Cover */}
-                <div className="w-40 flex-shrink-0">
-                  <img
-                    src={book.image}
-                    alt={book.title}
-                    className="w-full h-auto object-cover rounded"
-                  />
-                </div>
-
-                {/* Book Details */}
-                <div className="flex-1">
-                  {book.title === "The Great Gatsby" ? (
-                    <Link to="/book/the-great-gatsby">
-                      <h3 className="text-4xl font-afacad text-black underline mb-2 leading-tight hover:text-brand-orange transition-colors">
-                        {book.title}
-                      </h3>
-                    </Link>
-                  ) : (
-                    <h3 className="text-4xl font-afacad text-black underline mb-2 leading-tight">
-                      {book.title}
-                    </h3>
-                  )}
-                  <p className="text-3xl font-afacad text-gray-500 underline mb-4">
-                    {book.author}
-                  </p>
-                </div>
-
-                {/* Action Buttons */}
-                <div className="w-56 flex-shrink-0 space-y-3">
-                  {book.hasDownload ? (
-                    <Button 
-                      onClick={() => handleDownload(book.title)}
-                      className="w-full h-12 bg-brand-orange hover:bg-brand-orange-light text-white font-abhaya text-2xl rounded-sm"
-                    >
-                      <Download size={24} className="mr-2" />
-                      Download
-                    </Button>
-                  ) : (
-                    <Button 
-                      onClick={() => handleReadOnline(book.title)}
-                      className="w-full h-12 bg-brand-orange hover:bg-brand-orange-light text-white font-abhaya text-2xl rounded-sm"
-                    >
-                      <BookOpen size={24} className="mr-2" />
-                      Read Online
-                    </Button>
-                  )}
-
-                  <Button
-                    variant="outline"
-                    className="w-full h-12 border-brand-border-light font-abhaya text-2xl rounded-sm"
-                  >
-                    <Bookmark size={24} className="mr-2" />
-                    Save
-                  </Button>
-
-                  <Button
-                    variant="outline"
-                    className="w-full h-12 border-brand-border-light font-abhaya text-2xl rounded-sm"
-                  >
-                    <Quote size={24} className="mr-2" />
-                    Cite
-                  </Button>
-                </div>
+          {/* Search Results */}
+          <div className="space-y-6">
+            {loading ? (
+              <div className="text-center py-12">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-orange mx-auto"></div>
+                <p className="mt-4 text-gray-600">Searching...</p>
               </div>
-            ))}
+            ) : books.length === 0 ? (
+              <div className="text-center py-12">
+                <BookOpen className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">No books found</h3>
+                <p className="text-gray-600">Try adjusting your search terms or filters.</p>
+              </div>
+            ) : (
+              books.map((book) => (
+                <div key={book._id} className="flex gap-6 p-6 border border-gray-200 rounded-lg hover:shadow-md transition-shadow">
+                  {/* Book Cover */}
+                  <div className="w-32 h-48 bg-gray-200 rounded-lg flex-shrink-0 flex items-center justify-center">
+                    {book.coverImage ? (
+                      <img 
+                        src={book.coverImage} 
+                        alt={book.title}
+                        className="w-full h-full object-cover rounded-lg"
+                      />
+                    ) : (
+                      <BookText className="w-12 h-12 text-gray-400" />
+                    )}
+                  </div>
+
+                  {/* Book Details */}
+                  <div className="flex-1">
+                    <div className="flex items-start justify-between mb-4">
+                      <div>
+                        <h3 className="text-2xl font-abhaya text-black mb-2">{book.title}</h3>
+                        <p className="text-lg text-gray-600 mb-2">by {book.author}</p>
+                        <div className="flex items-center gap-4 text-sm text-gray-500 mb-3">
+                          <span className="flex items-center gap-1">
+                            <Calendar className="w-4 h-4" />
+                            {book.publishedYear}
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <BookOpen className="w-4 h-4" />
+                            {book.publisher}
+                          </span>
+                          {book.location && (
+                            <span className="flex items-center gap-1">
+                              <MapPin className="w-4 h-4" />
+                              {book.location}
+                            </span>
+                          )}
+                        </div>
+                        <Badge className={getStatusColor(book.status)}>
+                          {book.status.replace('-', ' ')}
+                        </Badge>
+                      </div>
+                      
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleSave(book)}
+                        >
+                          <Bookmark className="w-4 h-4 mr-2" />
+                          Save
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleCite(book)}
+                        >
+                          <Quote className="w-4 h-4 mr-2" />
+                          Cite
+                        </Button>
+                      </div>
+                    </div>
+
+                    {book.description && (
+                      <p className="text-gray-700 mb-4 line-clamp-3">{book.description}</p>
+                    )}
+
+                    <div className="flex items-center justify-between text-sm text-gray-500">
+                      <span>ISBN: {book.isbn}</span>
+                      <span>{book.availableCopies} of {book.totalCopies} copies available</span>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
+
+          {/* Pagination */}
+          {totalResults > 20 && (
+            <div className="flex justify-center mt-8">
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                  disabled={currentPage === 1}
+                >
+                  Previous
+                </Button>
+                <span className="px-4 py-2 text-gray-600">
+                  Page {currentPage} of {Math.ceil(totalResults / 20)}
+                </span>
+                <Button
+                  variant="outline"
+                  onClick={() => setCurrentPage(prev => prev + 1)}
+                  disabled={currentPage >= Math.ceil(totalResults / 20)}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
