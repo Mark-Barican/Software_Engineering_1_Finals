@@ -5,7 +5,7 @@ import { getProfile, updateProfile, changePassword, deleteProfile } from "./rout
 import mongoose from "mongoose";
 import { register, login, forgotPassword, resetPassword, getUserSessions, revokeSession, revokeAllSessions, refreshSession, verifyTokenWithSession, requireAdmin, requireLibrarian, requireUser, uploadProfilePicture, getProfilePicture, removeProfilePicture } from "./routes/auth";
 import { getAdminStats, getUsers, createUser, updateUser, deleteUser, getBooks, createBook, updateBook, deleteBook } from "./routes/admin";
-import { getLibrarianDashboard, getLibrarianBooks, issueBook, returnBook, getLoans, getOverdueBooks, getReservations, searchUsers, getUserLoans, updateReservation, createFine, updateFine, getFines, updateBookStatus, sendNotification } from "./routes/librarian";
+import { getLibrarianDashboard, getLibrarianBooks, getBook, createBook as createLibrarianBook, updateBook as updateLibrarianBook, issueBook, returnBook, getLoans, getOverdueBooks, getReservations, searchUsers, getUserLoans, updateReservation, createFine, updateFine, getFines, updateBookStatus, sendNotification } from "./routes/librarian";
 import { getStudentStats, getBooksForStudent, getStudentLoans, renewLoan, getStudentReservations, createReservation, cancelReservation, getStudentFines, getStudentNotifications, markNotificationAsRead, submitFeedback, submitBookSuggestion, getStudentProfile } from "./routes/student";
 
 export function createServer() {
@@ -76,6 +76,9 @@ export function createServer() {
   // Librarian routes
   app.get("/api/librarian/dashboard", verifyTokenWithSession, requireLibrarian, getLibrarianDashboard);
   app.get("/api/librarian/books", verifyTokenWithSession, requireLibrarian, getLibrarianBooks);
+  app.get("/api/librarian/books/:id", verifyTokenWithSession, requireLibrarian, getBook);
+  app.post("/api/librarian/books", verifyTokenWithSession, requireLibrarian, createLibrarianBook);
+  app.put("/api/librarian/books/:id", verifyTokenWithSession, requireLibrarian, updateLibrarianBook);
   app.put("/api/librarian/books/:id/status", verifyTokenWithSession, requireLibrarian, updateBookStatus);
   app.post("/api/librarian/loans/issue", verifyTokenWithSession, requireLibrarian, issueBook);
   app.post("/api/librarian/loans/return", verifyTokenWithSession, requireLibrarian, returnBook);

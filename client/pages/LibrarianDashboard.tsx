@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/use-auth";
 import UserAvatar from "../components/UserAvatar";
+import BookFormModal from "../components/BookFormModal";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -89,6 +90,8 @@ interface User {
   name: string;
   email: string;
   role: string;
+  userId: string;
+  department: string;
   activeLoans: number;
   overdueLoans: number;
   totalFines: number;
@@ -98,6 +101,18 @@ interface User {
     fileName: string;
     uploadDate: string;
   };
+}
+
+interface Reservation {
+  _id: string;
+  userId: any;
+  bookId: any;
+  requestDate: string;
+  status: 'pending' | 'ready' | 'fulfilled' | 'cancelled' | 'expired';
+  priority: number;
+  notificationSent: boolean;
+  expiryDate?: string;
+  notes?: string;
 }
 
 export default function LibrarianDashboard() {
@@ -118,6 +133,7 @@ export default function LibrarianDashboard() {
   const [books, setBooks] = useState<Book[]>([]);
   const [loans, setLoans] = useState<Loan[]>([]);
   const [overdueLoans, setOverdueLoans] = useState<Loan[]>([]);
+  const [reservations, setReservations] = useState<Reservation[]>([]);
   const [searchResults, setSearchResults] = useState<User[]>([]);
   
   // Form states
@@ -141,6 +157,28 @@ export default function LibrarianDashboard() {
   const [genreFilters, setGenreFilters] = useState<Set<string>>(new Set());
   const [availabilityFilters, setAvailabilityFilters] = useState<Set<string>>(new Set(['has-copies', 'all-on-loan']));
   const [allGenres, setAllGenres] = useState<Set<string>>(new Set());
+
+  const [auditHistory, setAuditHistory] = useState<Record<string, any[]>>({});
+  const [auditingBookId, setAuditingBookId] = useState<string | null>(null);
+  const [auditLoading, setAuditLoading] = useState(false);
+
+  const [recentFines, setRecentFines] = useState<any[]>([]);
+  const [recentLoans, setRecentLoans] = useState<any[]>([]);
+  const [reportsLoading, setReportsLoading] = useState(false);
+
+  const [showNotificationModal, setShowNotificationModal] = useState(false);
+  const [notificationUser, setNotificationUser] = useState<User | null>(null);
+  const [notificationForm, setNotificationForm] = useState({ title: '', message: '', type: 'general' });
+  const [notificationSending, setNotificationSending] = useState(false);
+
+  // Reservation management states
+  const [reservationStatusFilter, setReservationStatusFilter] = useState<string>('all');
+  const [updatingReservation, setUpdatingReservation] = useState<string | null>(null);
+
+  // Book form modal states
+  const [showBookModal, setShowBookModal] = useState(false);
+  const [editingBook, setEditingBook] = useState<any>(null);
+  const [bookModalMode, setBookModalMode] = useState<'add' | 'edit'>('add');
 
   useEffect(() => {
     // Check if user is librarian or admin
@@ -179,6 +217,9 @@ export default function LibrarianDashboard() {
       
       // Load overdue books
       await loadOverdueBooks();
+
+      // Load reservations
+      await loadReservations();
 
     } catch (error) {
       console.error('Error loading dashboard data:', error);
@@ -242,6 +283,22 @@ export default function LibrarianDashboard() {
       }
     } catch (error) {
       console.error('Error loading overdue books:', error);
+    }
+  };
+
+  const loadReservations = async () => {
+    try {
+      const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+      const response = await fetch('/api/librarian/reservations', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setReservations(data);
+      }
+    } catch (error) {
+      console.error('Error loading reservations:', error);
     }
   };
 
@@ -440,6 +497,264 @@ export default function LibrarianDashboard() {
     }
   };
 
+  // Fetch audit history for a book
+  const fetchAuditHistory = async (bookId: string) => {
+    setAuditLoading(true);
+    try {
+      const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+      const res = await fetch(`/api/librarian/inventory-audits?bookId=${bookId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setAuditHistory(prev => ({ ...prev, [bookId]: data.audits }));
+      }
+    } finally {
+      setAuditLoading(false);
+    }
+  };
+
+  // Audit a book (log current stock)
+  const auditBook = async (book: Book) => {
+    setAuditingBookId(book.id);
+    setAuditLoading(true);
+    try {
+      const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+      const res = await fetch('/api/librarian/inventory-audits', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          bookId: book.id,
+          expectedCount: book.totalCopies,
+          actualCount: book.availableCopies + book.currentLoans,
+          notes: ''
+        })
+      });
+      if (res.ok) {
+        await fetchAuditHistory(book.id);
+        alert('Audit logged!');
+      } else {
+        alert('Failed to log audit.');
+      }
+    } finally {
+      setAuditingBookId(null);
+      setAuditLoading(false);
+    }
+  };
+
+  // Fetch recent fines and loans for reports
+  const fetchReportsData = async () => {
+    setReportsLoading(true);
+    try {
+      const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+      // Fines
+      const finesRes = await fetch('/api/librarian/fines?limit=5', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (finesRes.ok) {
+        const data = await finesRes.json();
+        setRecentFines(data.fines || []);
+      }
+      // Loans
+      const loansRes = await fetch('/api/librarian/loans?limit=5', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (loansRes.ok) {
+        const data = await loansRes.json();
+        setRecentLoans(data.loans || []);
+      }
+    } finally {
+      setReportsLoading(false);
+    }
+  };
+
+  // Fetch on tab change
+  useEffect(() => {
+    if (activeTab === 'reports') {
+      fetchReportsData();
+    }
+  }, [activeTab]);
+
+  // Send notification
+  const sendNotification = async () => {
+    if (!notificationUser) return;
+    setNotificationSending(true);
+    try {
+      const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+      const res = await fetch('/api/librarian/notifications', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          userId: notificationUser._id,
+          type: notificationForm.type,
+          title: notificationForm.title,
+          message: notificationForm.message
+        })
+      });
+      if (res.ok) {
+        alert('Notification sent!');
+        setShowNotificationModal(false);
+        setNotificationForm({ title: '', message: '', type: 'general' });
+      } else {
+        alert('Failed to send notification.');
+      }
+    } finally {
+      setNotificationSending(false);
+    }
+  };
+
+  // Update reservation status
+  const updateReservationStatus = async (reservationId: string, status: string, notes?: string) => {
+    setUpdatingReservation(reservationId);
+    try {
+      const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+      const response = await fetch(`/api/librarian/reservations/${reservationId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ status, notes })
+      });
+      
+      if (response.ok) {
+        alert(`Reservation status updated to ${status}`);
+        loadReservations();
+        loadDashboardData(); // Refresh stats
+      } else {
+        const error = await response.json();
+        alert(`Error: ${error.message}`);
+      }
+    } catch (error) {
+      console.error('Error updating reservation:', error);
+      alert('Error updating reservation status');
+    } finally {
+      setUpdatingReservation(null);
+    }
+  };
+
+  // Cancel reservation
+  const cancelReservation = async (reservationId: string) => {
+    if (!confirm('Are you sure you want to cancel this reservation?')) return;
+    
+    setUpdatingReservation(reservationId);
+    try {
+      const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+      const response = await fetch(`/api/librarian/reservations/${reservationId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ 
+          status: 'cancelled', 
+          notes: 'Cancelled by librarian' 
+        })
+      });
+      
+      if (response.ok) {
+        alert('Reservation cancelled successfully');
+        loadReservations();
+        loadDashboardData(); // Refresh stats
+      } else {
+        const error = await response.json();
+        alert(`Error: ${error.message}`);
+      }
+    } catch (error) {
+      console.error('Error cancelling reservation:', error);
+      alert('Error cancelling reservation');
+    } finally {
+      setUpdatingReservation(null);
+    }
+  };
+
+  // Send overdue reminder
+  const sendOverdueReminder = async (loan: Loan) => {
+    try {
+      const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+      const response = await fetch('/api/librarian/notifications', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          userId: loan.userId._id,
+          type: 'overdue',
+          title: 'Overdue Book Reminder',
+          message: `Your book "${loan.bookId.title}" is ${loan.overdueDays} days overdue. Please return it as soon as possible to avoid additional fines.`
+        })
+      });
+      
+      if (response.ok) {
+        alert('Overdue reminder sent successfully!');
+      } else {
+        const error = await response.json();
+        alert(`Error: ${error.message}`);
+      }
+    } catch (error) {
+      console.error('Error sending overdue reminder:', error);
+      alert('Error sending reminder');
+    }
+  };
+
+  // Book management functions
+  const saveBook = async (bookData: any) => {
+    const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+    if (!token) return;
+
+    try {
+      const url = bookModalMode === 'add' 
+        ? '/api/librarian/books' 
+        : `/api/librarian/books/${editingBook?.id}`;
+      
+      const method = bookModalMode === 'add' ? 'POST' : 'PUT';
+      
+      const response = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(bookData)
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        alert(bookModalMode === 'add' ? 'Book added successfully!' : 'Book updated successfully!');
+        
+        // Refresh books list
+        loadBooks();
+        setShowBookModal(false);
+        setEditingBook(null);
+      } else {
+        const error = await response.json();
+        alert(`Error: ${error.message}`);
+      }
+    } catch (error) {
+      console.error('Error saving book:', error);
+      alert('An error occurred while saving the book');
+    }
+  };
+
+  const openAddBookModal = () => {
+    setEditingBook(null);
+    setBookModalMode('add');
+    setShowBookModal(true);
+  };
+
+  const openEditBookModal = (book: Book) => {
+    setEditingBook(book);
+    setBookModalMode('edit');
+    setShowBookModal(true);
+  };
+
   if (!user || !['librarian', 'admin'].includes(user.role)) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
@@ -490,7 +805,7 @@ export default function LibrarianDashboard() {
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-8">
+          <TabsList className="grid w-full grid-cols-9">
             <TabsTrigger value="overview" className="flex items-center gap-1">
               <TrendingUp className="w-3 h-3" />
               Overview
@@ -514,6 +829,10 @@ export default function LibrarianDashboard() {
             <TabsTrigger value="users" className="flex items-center gap-1">
               <Users className="w-3 h-3" />
               Users
+            </TabsTrigger>
+            <TabsTrigger value="inventory" className="flex items-center gap-1">
+              <Package className="w-3 h-3" />
+              Inventory
             </TabsTrigger>
             <TabsTrigger value="reports" className="flex items-center gap-1">
               <FileText className="w-3 h-3" />
@@ -643,6 +962,10 @@ export default function LibrarianDashboard() {
                   className="w-64"
                 />
                 <Button onClick={loadBooks}>Search</Button>
+                <Button onClick={openAddBookModal} className="flex items-center gap-2">
+                  <Plus className="w-4 h-4" />
+                  Add Book
+                </Button>
               </div>
             </div>
 
@@ -845,7 +1168,11 @@ export default function LibrarianDashboard() {
                         <Button variant="outline" size="sm">
                           <Eye className="w-4 h-4" />
                         </Button>
-                        <Button variant="outline" size="sm">
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => openEditBookModal(book)}
+                        >
                           <Edit className="w-4 h-4" />
                         </Button>
                       </div>
@@ -1046,6 +1373,14 @@ export default function LibrarianDashboard() {
                       </Button>
                     </div>
                   ))}
+                  
+                  {loans.filter(loan => loan.status === 'active').length === 0 && (
+                    <div className="text-center py-8">
+                      <UserCheck className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                      <p className="text-gray-600">No active loans</p>
+                      <p className="text-sm text-gray-500">All books have been returned or no books are currently on loan.</p>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -1090,7 +1425,11 @@ export default function LibrarianDashboard() {
                         </div>
                       </div>
                       <div className="flex gap-2">
-                        <Button size="sm" variant="outline">
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          onClick={() => sendOverdueReminder(loan)}
+                        >
                           Send Reminder
                         </Button>
                         <Button onClick={() => returnBook(loan._id)} size="sm">
@@ -1099,6 +1438,14 @@ export default function LibrarianDashboard() {
                       </div>
                     </div>
                   ))}
+                  
+                  {overdueLoans.length === 0 && (
+                    <div className="text-center py-8">
+                      <AlertTriangle className="w-16 h-16 text-green-500 mx-auto mb-4" />
+                      <p className="text-gray-600">No overdue books!</p>
+                      <p className="text-sm text-gray-500">All books are returned on time.</p>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -1136,6 +1483,12 @@ export default function LibrarianDashboard() {
                           <div>
                             <p className="font-medium">{user.name}</p>
                             <p className="text-sm text-gray-600">{user.email}</p>
+                            <p className="text-xs text-gray-500">
+                              <span className="font-mono bg-gray-100 px-2 py-1 rounded text-xs">
+                                {user.userId}
+                              </span>
+                              {user.department && ` • ${user.department}`}
+                            </p>
                           </div>
                         </div>
                         <div>
@@ -1158,10 +1511,142 @@ export default function LibrarianDashboard() {
                         <Button size="sm" variant="outline">
                           Send Message
                         </Button>
+                        <Button size="sm" onClick={() => { setNotificationUser(user); setShowNotificationModal(true); }}>
+                          Send Notification
+                        </Button>
                       </div>
                     </div>
                   ))}
                 </div>
+                {/* Notification Modal */}
+                {showNotificationModal && notificationUser && (
+                  <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
+                    <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-md">
+                      <h2 className="text-lg font-semibold mb-4">Send Notification to {notificationUser.name}</h2>
+                      <div className="mb-3">
+                        <Label>Type</Label>
+                        <select
+                          className="w-full border rounded px-2 py-1 mt-1"
+                          value={notificationForm.type}
+                          onChange={e => setNotificationForm(f => ({ ...f, type: e.target.value }))}
+                        >
+                          <option value="general">General</option>
+                          <option value="overdue">Overdue</option>
+                          <option value="reservation_ready">Reservation Ready</option>
+                          <option value="fine">Fine</option>
+                          <option value="book_reminder">Book Reminder</option>
+                        </select>
+                      </div>
+                      <div className="mb-3">
+                        <Label>Title</Label>
+                        <Input
+                          value={notificationForm.title}
+                          onChange={e => setNotificationForm(f => ({ ...f, title: e.target.value }))}
+                          placeholder="Notification title"
+                        />
+                      </div>
+                      <div className="mb-3">
+                        <Label>Message</Label>
+                        <textarea
+                          className="w-full border rounded px-2 py-1 mt-1"
+                          rows={3}
+                          value={notificationForm.message}
+                          onChange={e => setNotificationForm(f => ({ ...f, message: e.target.value }))}
+                          placeholder="Notification message"
+                        />
+                      </div>
+                      <div className="flex gap-2 justify-end mt-4">
+                        <Button variant="outline" onClick={() => setShowNotificationModal(false)} disabled={notificationSending}>Cancel</Button>
+                        <Button onClick={sendNotification} disabled={notificationSending || !notificationForm.title || !notificationForm.message}>
+                          {notificationSending ? 'Sending...' : 'Send'}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Inventory Tab */}
+          <TabsContent value="inventory" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Inventory Checking & Audit</CardTitle>
+                <CardDescription>
+                  View all books, check stock, and log inventory audits.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-sm">
+                    <thead>
+                      <tr className="bg-gray-100">
+                        <th className="px-4 py-2 text-left">Title</th>
+                        <th className="px-4 py-2 text-left">Author</th>
+                        <th className="px-4 py-2 text-left">Total</th>
+                        <th className="px-4 py-2 text-left">Available</th>
+                        <th className="px-4 py-2 text-left">On Loan</th>
+                        <th className="px-4 py-2 text-left">Status</th>
+                        <th className="px-4 py-2 text-left">Audit</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {books.map(book => (
+                        <tr key={book.id} className="border-b">
+                          <td className="px-4 py-2">{book.title}</td>
+                          <td className="px-4 py-2">{book.author}</td>
+                          <td className="px-4 py-2">{book.totalCopies}</td>
+                          <td className="px-4 py-2">{book.availableCopies}</td>
+                          <td className="px-4 py-2">{book.currentLoans}</td>
+                          <td className="px-4 py-2">
+                            <span className={`px-2 py-1 rounded ${getStatusColor(book.status)}`}>{book.status}</span>
+                          </td>
+                          <td className="px-4 py-2">
+                            <Button size="sm" onClick={() => auditBook(book)} disabled={auditLoading && auditingBookId === book.id}>
+                              {auditLoading && auditingBookId === book.id ? 'Auditing...' : 'Audit'}
+                            </Button>
+                            <Button size="sm" variant="outline" className="ml-2" onClick={() => fetchAuditHistory(book.id)}>
+                              History
+                            </Button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {/* Audit History */}
+                {Object.entries(auditHistory).map(([bookId, audits]) => (
+                  <div key={bookId} className="mt-6">
+                    <h3 className="font-semibold text-lg mb-2">Audit History for Book ID: {bookId}</h3>
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full text-xs">
+                        <thead>
+                          <tr className="bg-gray-50">
+                            <th className="px-2 py-1">Date</th>
+                            <th className="px-2 py-1">Expected</th>
+                            <th className="px-2 py-1">Actual</th>
+                            <th className="px-2 py-1">Discrepancy</th>
+                            <th className="px-2 py-1">Status</th>
+                            <th className="px-2 py-1">Notes</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {audits.map((audit: any) => (
+                            <tr key={audit._id}>
+                              <td className="px-2 py-1">{new Date(audit.auditDate).toLocaleString()}</td>
+                              <td className="px-2 py-1">{audit.expectedCount}</td>
+                              <td className="px-2 py-1">{audit.actualCount}</td>
+                              <td className="px-2 py-1">{audit.discrepancy}</td>
+                              <td className="px-2 py-1">{audit.status}</td>
+                              <td className="px-2 py-1">{audit.notes}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ))}
               </CardContent>
             </Card>
           </TabsContent>
@@ -1176,11 +1661,148 @@ export default function LibrarianDashboard() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-center py-8">
-                  <Calendar className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-600">Reservation management features coming soon...</p>
-                  <p className="text-sm text-gray-500">Manage book reservations, approve requests, and notify users</p>
+                                 <div className="flex justify-between items-center mb-4">
+                   <h2 className="text-xl font-semibold text-gray-900">Reservations ({reservations.length})</h2>
+                   <div className="flex gap-2">
+                     <DropdownMenu>
+                       <DropdownMenuTrigger asChild>
+                         <Button variant="outline">
+                           Filter: {reservationStatusFilter === 'all' ? 'All Statuses' : reservationStatusFilter}
+                           <ChevronDown className="w-4 h-4 ml-1" />
+                         </Button>
+                       </DropdownMenuTrigger>
+                       <DropdownMenuContent>
+                         <DropdownMenuItem onClick={() => setReservationStatusFilter('all')}>
+                           All Statuses
+                         </DropdownMenuItem>
+                         <DropdownMenuSeparator />
+                         <DropdownMenuItem onClick={() => setReservationStatusFilter('pending')}>
+                           Pending
+                         </DropdownMenuItem>
+                         <DropdownMenuItem onClick={() => setReservationStatusFilter('ready')}>
+                           Ready
+                         </DropdownMenuItem>
+                         <DropdownMenuItem onClick={() => setReservationStatusFilter('fulfilled')}>
+                           Fulfilled
+                         </DropdownMenuItem>
+                         <DropdownMenuItem onClick={() => setReservationStatusFilter('cancelled')}>
+                           Cancelled
+                         </DropdownMenuItem>
+                         <DropdownMenuItem onClick={() => setReservationStatusFilter('expired')}>
+                           Expired
+                         </DropdownMenuItem>
+                       </DropdownMenuContent>
+                     </DropdownMenu>
+                     <Button onClick={() => loadReservations()}>
+                       <RefreshCw className="w-4 h-4 mr-2" />
+                       Refresh
+                     </Button>
+                   </div>
+                 </div>
+
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-sm">
+                    <thead>
+                      <tr className="bg-gray-100">
+                        <th className="px-4 py-2 text-left">User</th>
+                        <th className="px-4 py-2 text-left">Book</th>
+                        <th className="px-4 py-2 text-left">Status</th>
+                        <th className="px-4 py-2 text-left">Priority</th>
+                        <th className="px-4 py-2 text-left">Request Date</th>
+                        <th className="px-4 py-2 text-left">Expiry Date</th>
+                        <th className="px-4 py-2 text-left">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {reservations
+                        .filter(res => reservationStatusFilter === 'all' || res.status === reservationStatusFilter)
+                        .map((reservation) => (
+                          <tr key={reservation._id} className="border-b">
+                            <td className="px-4 py-2">{reservation.userId?.name || 'N/A'}</td>
+                            <td className="px-4 py-2">{reservation.bookId?.title || 'N/A'}</td>
+                            <td className="px-4 py-2">
+                              <Badge className={`px-2 py-1 rounded ${
+                                reservation.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                                reservation.status === 'ready' ? 'bg-green-100 text-green-800' :
+                                reservation.status === 'fulfilled' ? 'bg-blue-100 text-blue-800' :
+                                reservation.status === 'cancelled' ? 'bg-red-100 text-red-800' :
+                                'bg-gray-100 text-gray-800'
+                              }`}>
+                                {reservation.status}
+                              </Badge>
+                            </td>
+                            <td className="px-4 py-2">{reservation.priority}</td>
+                            <td className="px-4 py-2">{new Date(reservation.requestDate).toLocaleDateString()}</td>
+                            <td className="px-4 py-2">{reservation.expiryDate ? new Date(reservation.expiryDate).toLocaleDateString() : 'N/A'}</td>
+                                                         <td className="px-4 py-2">
+                               <div className="flex gap-2">
+                                 <DropdownMenu>
+                                   <DropdownMenuTrigger asChild>
+                                     <Button
+                                       variant="outline"
+                                       size="sm"
+                                       disabled={updatingReservation === reservation._id}
+                                     >
+                                       {updatingReservation === reservation._id ? 'Updating...' : 'Update Status'}
+                                       <ChevronDown className="w-4 h-4 ml-1" />
+                                     </Button>
+                                   </DropdownMenuTrigger>
+                                   <DropdownMenuContent>
+                                     <DropdownMenuLabel>Change Status</DropdownMenuLabel>
+                                     <DropdownMenuSeparator />
+                                     {reservation.status === 'pending' && (
+                                       <DropdownMenuItem onClick={() => updateReservationStatus(reservation._id, 'ready')}>
+                                         Mark as Ready
+                                       </DropdownMenuItem>
+                                     )}
+                                     {reservation.status === 'ready' && (
+                                       <DropdownMenuItem onClick={() => updateReservationStatus(reservation._id, 'fulfilled')}>
+                                         Mark as Fulfilled
+                                       </DropdownMenuItem>
+                                     )}
+                                     {reservation.status !== 'cancelled' && reservation.status !== 'expired' && (
+                                       <DropdownMenuItem onClick={() => updateReservationStatus(reservation._id, 'cancelled')}>
+                                         Cancel
+                                       </DropdownMenuItem>
+                                     )}
+                                     {reservation.status === 'ready' && (
+                                       <DropdownMenuItem onClick={() => updateReservationStatus(reservation._id, 'expired')}>
+                                         Mark as Expired
+                                       </DropdownMenuItem>
+                                     )}
+                                   </DropdownMenuContent>
+                                 </DropdownMenu>
+                                 
+                                 <Button
+                                   variant="outline"
+                                   size="sm"
+                                   onClick={() => {
+                                     // Show reservation details
+                                     alert(`Reservation Details:\nUser: ${reservation.userId?.name}\nBook: ${reservation.bookId?.title}\nStatus: ${reservation.status}\nPriority: ${reservation.priority}\nRequest Date: ${new Date(reservation.requestDate).toLocaleDateString()}`);
+                                   }}
+                                 >
+                                   <Eye className="w-4 h-4" />
+                                 </Button>
+                               </div>
+                             </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
                 </div>
+
+                {reservations.filter(res => reservationStatusFilter === 'all' || res.status === reservationStatusFilter).length === 0 && (
+                  <div className="text-center py-8">
+                    <Calendar className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                    <p className="text-gray-600">
+                      {reservationStatusFilter === 'all' 
+                        ? 'No reservations found.' 
+                        : `No ${reservationStatusFilter} reservations found.`
+                      }
+                    </p>
+                    <p className="text-sm text-gray-500">Reservations will appear here when students request books</p>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -1189,49 +1811,97 @@ export default function LibrarianDashboard() {
           <TabsContent value="reports" className="space-y-6">
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <FileText className="w-5 h-5" />
-                  Basic Reports
-                </CardTitle>
+                <CardTitle>Library Reports</CardTitle>
+                <CardDescription>Basic statistics and recent activity.</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="p-4 border rounded-lg">
-                    <h3 className="font-medium mb-2">Daily Reports</h3>
-                    <div className="space-y-2">
-                      <Button variant="outline" size="sm" className="w-full justify-start">
-                        <FileText className="w-4 h-4 mr-2" />
-                        Daily Checkouts
-                      </Button>
-                      <Button variant="outline" size="sm" className="w-full justify-start">
-                        <FileText className="w-4 h-4 mr-2" />
-                        Daily Returns
-                      </Button>
-                      <Button variant="outline" size="sm" className="w-full justify-start">
-                        <FileText className="w-4 h-4 mr-2" />
-                        New Registrations
-                      </Button>
-                    </div>
+                {reportsLoading ? (
+                  <div className="flex items-center justify-center h-32">
+                    <RefreshCw className="w-8 h-8 animate-spin text-blue-600" />
                   </div>
-                  
-                  <div className="p-4 border rounded-lg">
-                    <h3 className="font-medium mb-2">Overdue Reports</h3>
-                    <div className="space-y-2">
-                      <Button variant="outline" size="sm" className="w-full justify-start">
-                        <AlertTriangle className="w-4 h-4 mr-2" />
-                        Overdue Items
-                      </Button>
-                      <Button variant="outline" size="sm" className="w-full justify-start">
-                        <DollarSign className="w-4 h-4 mr-2" />
-                        Fine Collections
-                      </Button>
-                      <Button variant="outline" size="sm" className="w-full justify-start">
-                        <FileText className="w-4 h-4 mr-2" />
-                        Monthly Summary
-                      </Button>
+                ) : (
+                  <>
+                    {/* Stats */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                      <Card>
+                        <CardContent className="p-4">
+                          <div className="text-sm text-gray-600">Total Books</div>
+                          <div className="text-2xl font-bold">{stats.totalBooks}</div>
+                        </CardContent>
+                      </Card>
+                      <Card>
+                        <CardContent className="p-4">
+                          <div className="text-sm text-gray-600">Active Loans</div>
+                          <div className="text-2xl font-bold">{stats.totalLoans}</div>
+                        </CardContent>
+                      </Card>
+                      <Card>
+                        <CardContent className="p-4">
+                          <div className="text-sm text-gray-600">Overdue Loans</div>
+                          <div className="text-2xl font-bold">{stats.overdueLoans}</div>
+                        </CardContent>
+                      </Card>
+                      <Card>
+                        <CardContent className="p-4">
+                          <div className="text-sm text-gray-600">Outstanding Fines</div>
+                          <div className="text-2xl font-bold">${stats.totalFines.toFixed(2)}</div>
+                        </CardContent>
+                      </Card>
                     </div>
-                  </div>
-                </div>
+                    {/* Recent Fines */}
+                    <h3 className="font-semibold text-lg mb-2 mt-6">Recent Fines</h3>
+                    <div className="overflow-x-auto mb-6">
+                      <table className="min-w-full text-xs">
+                        <thead>
+                          <tr className="bg-gray-50">
+                            <th className="px-2 py-1">User</th>
+                            <th className="px-2 py-1">Amount</th>
+                            <th className="px-2 py-1">Reason</th>
+                            <th className="px-2 py-1">Status</th>
+                            <th className="px-2 py-1">Date</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {recentFines.map((fine) => (
+                            <tr key={fine._id}>
+                              <td className="px-2 py-1">{fine.userId?.name || 'N/A'}</td>
+                              <td className="px-2 py-1">${fine.amount.toFixed(2)}</td>
+                              <td className="px-2 py-1">{fine.reason}</td>
+                              <td className="px-2 py-1">{fine.status}</td>
+                              <td className="px-2 py-1">{new Date(fine.dateIssued).toLocaleDateString()}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    {/* Recent Loans */}
+                    <h3 className="font-semibold text-lg mb-2 mt-6">Recent Loans</h3>
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full text-xs">
+                        <thead>
+                          <tr className="bg-gray-50">
+                            <th className="px-2 py-1">User</th>
+                            <th className="px-2 py-1">Book</th>
+                            <th className="px-2 py-1">Status</th>
+                            <th className="px-2 py-1">Issued</th>
+                            <th className="px-2 py-1">Due</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {recentLoans.map((loan) => (
+                            <tr key={loan._id}>
+                              <td className="px-2 py-1">{loan.userId?.name || 'N/A'}</td>
+                              <td className="px-2 py-1">{loan.bookId?.title || 'N/A'}</td>
+                              <td className="px-2 py-1">{loan.status}</td>
+                              <td className="px-2 py-1">{new Date(loan.issueDate).toLocaleDateString()}</td>
+                              <td className="px-2 py-1">{new Date(loan.dueDate).toLocaleDateString()}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -1296,6 +1966,18 @@ export default function LibrarianDashboard() {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Book Form Modal */}
+      <BookFormModal
+        isOpen={showBookModal}
+        onClose={() => {
+          setShowBookModal(false);
+          setEditingBook(null);
+        }}
+        onSave={saveBook}
+        book={editingBook}
+        mode={bookModalMode}
+      />
     </div>
   );
 } 

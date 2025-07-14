@@ -449,11 +449,12 @@ export async function searchUsers(req: Request, res: Response) {
     const users = await User.find({
       $or: [
         { name: { $regex: q, $options: 'i' } },
-        { email: { $regex: q, $options: 'i' } }
+        { email: { $regex: q, $options: 'i' } },
+        { userId: { $regex: q, $options: 'i' } }
       ],
       role: { $ne: 'admin' } // Don't show admin users
     })
-      .select('name email role createdAt lastLogin profilePicture')
+      .select('name email userId role department createdAt lastLogin profilePicture')
       .limit(20);
 
     // Get loan info for each user
@@ -734,6 +735,161 @@ export async function getFines(req: Request, res: Response) {
     });
   } catch (error) {
     console.error('Get fines error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+}
+
+// POST /api/librarian/books - Create a new book (librarian can add books)
+export async function createBook(req: Request, res: Response) {
+  try {
+    const librarian = (req as any).user;
+    const {
+      title,
+      author,
+      isbn,
+      genre,
+      publishedYear,
+      publisher,
+      description,
+      coverImage,
+      totalCopies,
+      categories,
+      language,
+      pages,
+      hasDownload,
+      hasReadOnline,
+      location
+    } = req.body;
+
+    if (!title || !author || !isbn || !publisher || !publishedYear || !genre || !location) {
+      return res.status(400).json({ 
+        message: "Title, author, ISBN, publisher, publication year, genre, and location are required" 
+      });
+    }
+
+    const existingBook = await Book.findOne({ isbn });
+    if (existingBook) {
+      return res.status(400).json({ message: "Book with this ISBN already exists" });
+    }
+
+    const newBook = await Book.create({
+      title,
+      author,
+      isbn,
+      genre,
+      publishedYear,
+      publisher,
+      description,
+      coverImage,
+      totalCopies: totalCopies || 1,
+      availableCopies: totalCopies || 1,
+      categories: categories || [],
+      language: language || "English",
+      pages,
+      hasDownload: hasDownload || false,
+      hasReadOnline: hasReadOnline || false,
+      location
+    });
+
+    res.status(201).json({
+      message: "Book created successfully",
+      book: {
+        id: newBook._id,
+        title: newBook.title,
+        author: newBook.author,
+        isbn: newBook.isbn,
+        genre: newBook.genre,
+        totalCopies: newBook.totalCopies,
+        availableCopies: newBook.availableCopies,
+        location: newBook.location,
+        addedDate: newBook.addedDate
+      }
+    });
+  } catch (error) {
+    console.error('Create book error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+}
+
+// PUT /api/librarian/books/:id - Update a book (librarian can edit books)
+export async function updateBook(req: Request, res: Response) {
+  try {
+    const librarian = (req as any).user;
+    const { id } = req.params;
+    const updateData = req.body;
+
+    const book = await Book.findById(id);
+    if (!book) {
+      return res.status(404).json({ message: "Book not found" });
+    }
+
+    // Check if ISBN is being changed and already exists
+    if (updateData.isbn && updateData.isbn !== book.isbn) {
+      const existingBook = await Book.findOne({ isbn: updateData.isbn });
+      if (existingBook) {
+        return res.status(400).json({ message: "ISBN is already taken" });
+      }
+    }
+
+    const updatedBook = await Book.findByIdAndUpdate(
+      id,
+      { ...updateData, lastUpdated: new Date() },
+      { new: true }
+    );
+
+    res.json({
+      message: "Book updated successfully",
+      book: {
+        id: updatedBook._id,
+        title: updatedBook.title,
+        author: updatedBook.author,
+        isbn: updatedBook.isbn,
+        genre: updatedBook.genre,
+        totalCopies: updatedBook.totalCopies,
+        availableCopies: updatedBook.availableCopies,
+        location: updatedBook.location,
+        addedDate: updatedBook.addedDate,
+        lastUpdated: updatedBook.lastUpdated
+      }
+    });
+  } catch (error) {
+    console.error('Update book error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+}
+
+// GET /api/librarian/books/:id - Get a single book with full details
+export async function getBook(req: Request, res: Response) {
+  try {
+    const { id } = req.params;
+    
+    const book = await Book.findById(id);
+    if (!book) {
+      return res.status(404).json({ message: "Book not found" });
+    }
+
+    // Get additional information
+    const activeLoans = await Loan.countDocuments({ 
+      bookId: book._id, 
+      status: 'active' 
+    });
+    
+    const pendingReservations = await Reservation.countDocuments({
+      bookId: book._id,
+      status: 'pending'
+    });
+
+    const bookWithDetails = {
+      ...book.toObject(),
+      activeLoans,
+      pendingReservations,
+      status: book.availableCopies === 0 ? 'out-of-stock' : 
+              book.availableCopies <= 2 ? 'low-stock' : 'available'
+    };
+
+    res.json(bookWithDetails);
+  } catch (error) {
+    console.error('Get book error:', error);
     res.status(500).json({ message: 'Internal server error' });
   }
 }

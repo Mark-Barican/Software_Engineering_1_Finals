@@ -51,6 +51,8 @@ export async function getProfile(req: Request, res: Response) {
       name: user.name, 
       email: user.email, 
       role: user.role,
+      userId: user.userId,
+      department: user.department,
       preferences: user.preferences,
       profilePicture: user.profilePicture
     });

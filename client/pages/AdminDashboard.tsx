@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/use-auth";
 import UserAvatar from "../components/UserAvatar";
+import BookFormModal from "../components/BookFormModal";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -72,10 +73,22 @@ interface Book {
   author: string;
   isbn: string;
   genre: string;
+  publisher?: string;
+  publishedYear?: number;
+  description?: string;
+  coverImage?: string;
   totalCopies: number;
   availableCopies: number;
+  location?: string;
+  language?: string;
+  pages?: number;
+  hasDownload?: boolean;
+  hasReadOnline?: boolean;
+  categories?: string[];
   addedDate: string;
   status: 'available' | 'low-stock' | 'out-of-stock';
+  activeLoans?: number;
+  pendingReservations?: number;
 }
 
 export default function AdminDashboard() {
@@ -96,6 +109,11 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [roleFilters, setRoleFilters] = useState<Set<string>>(new Set(['admin', 'librarian', 'user']));
   const [statusFilters, setStatusFilters] = useState<Set<string>>(new Set(['available', 'low-stock', 'out-of-stock']));
+  
+  // Book form modal states
+  const [showBookModal, setShowBookModal] = useState(false);
+  const [editingBook, setEditingBook] = useState<any>(null);
+  const [bookModalMode, setBookModalMode] = useState<'add' | 'edit'>('add');
 
   useEffect(() => {
     // Check if user is admin
@@ -222,8 +240,12 @@ export default function AdminDashboard() {
           alert(`View book details for ${bookId}`);
           break;
         case 'edit':
-          // TODO: Implement book edit modal
-          alert(`Edit book ${bookId}`);
+          const bookToEdit = books.find(book => book.id === bookId);
+          if (bookToEdit) {
+            setEditingBook(bookToEdit);
+            setBookModalMode('edit');
+            setShowBookModal(true);
+          }
           break;
         default:
           console.log(`${action} book ${bookId}`);
@@ -256,6 +278,68 @@ export default function AdminDashboard() {
       }
       return newFilters;
     });
+  };
+
+  const saveBook = async (bookData: any) => {
+    const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+    if (!token) return;
+
+    try {
+      const url = bookModalMode === 'add' 
+        ? '/api/admin/books' 
+        : `/api/admin/books/${editingBook?.id}`;
+      
+      const method = bookModalMode === 'add' ? 'POST' : 'PUT';
+      
+      const response = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(bookData)
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        alert(bookModalMode === 'add' ? 'Book added successfully!' : 'Book updated successfully!');
+        
+        // Refresh books list
+        loadBooks();
+        setShowBookModal(false);
+        setEditingBook(null);
+      } else {
+        const error = await response.json();
+        alert(`Error: ${error.message}`);
+      }
+    } catch (error) {
+      console.error('Error saving book:', error);
+      alert('An error occurred while saving the book');
+    }
+  };
+
+  const openAddBookModal = () => {
+    setEditingBook(null);
+    setBookModalMode('add');
+    setShowBookModal(true);
+  };
+
+  const loadBooks = async () => {
+    try {
+      const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+      if (!token) return;
+
+      const booksResponse = await fetch('/api/admin/books?limit=50', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      if (booksResponse.ok) {
+        const booksData = await booksResponse.json();
+        setBooks(booksData.books);
+      }
+    } catch (error) {
+      console.error('Error loading books:', error);
+    }
   };
 
   const filteredUsers = users.filter(user => roleFilters.has(user.role));
@@ -744,7 +828,7 @@ export default function AdminDashboard() {
                   Manage library inventory ({filteredBooks.length} of {books.length} books shown)
                 </p>
               </div>
-              <Button className="flex items-center gap-2">
+              <Button className="flex items-center gap-2" onClick={openAddBookModal}>
                 <Plus className="w-4 h-4" />
                 Add New Book
               </Button>
@@ -824,19 +908,48 @@ export default function AdminDashboard() {
                   {filteredBooks.map((book) => (
                     <div key={book.id} className="flex items-center justify-between p-4 border rounded-lg">
                       <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center">
-                          <BookOpen className="w-5 h-5 text-gray-600" />
+                        <div className="w-12 h-16 bg-gray-200 rounded flex items-center justify-center">
+                          {book.coverImage ? (
+                            <img 
+                              src={book.coverImage} 
+                              alt={book.title}
+                              className="w-full h-full object-cover rounded"
+                              onError={(e) => {
+                                e.currentTarget.style.display = 'none';
+                                e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                              }}
+                            />
+                          ) : (
+                            <BookOpen className="w-6 h-6 text-gray-400" />
+                          )}
                         </div>
                         <div>
                           <p className="font-medium">{book.title}</p>
                           <p className="text-sm text-gray-600">by {book.author}</p>
-                          <p className="text-xs text-gray-500">ISBN: {book.isbn}</p>
+                          <p className="text-xs text-gray-500">
+                            ISBN: {book.isbn} | Genre: {book.genre}
+                            {book.publisher && ` | Publisher: ${book.publisher}`}
+                            {book.publishedYear && ` | ${book.publishedYear}`}
+                          </p>
+                          {book.location && (
+                            <p className="text-xs text-gray-500">Location: {book.location}</p>
+                          )}
                         </div>
-                        <Badge className={getStatusColor(book.status)}>
-                          {book.status}
-                        </Badge>
+                        <div className="flex flex-col gap-1">
+                          <Badge className={getStatusColor(book.status)}>
+                            {book.status}
+                          </Badge>
+                          {book.pendingReservations && book.pendingReservations > 0 && (
+                            <Badge className="bg-purple-100 text-purple-800 text-xs">
+                              {book.pendingReservations} reserved
+                            </Badge>
+                          )}
+                        </div>
                         <div className="text-sm text-gray-600">
-                          {book.availableCopies}/{book.totalCopies} available
+                          <div>Available: {book.availableCopies}/{book.totalCopies}</div>
+                          {book.activeLoans && book.activeLoans > 0 && (
+                            <div className="text-xs text-blue-600">{book.activeLoans} on loan</div>
+                          )}
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
@@ -956,6 +1069,18 @@ export default function AdminDashboard() {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Book Form Modal */}
+      <BookFormModal
+        isOpen={showBookModal}
+        onClose={() => {
+          setShowBookModal(false);
+          setEditingBook(null);
+        }}
+        onSave={saveBook}
+        book={editingBook}
+        mode={bookModalMode}
+      />
     </div>
   );
 } 
