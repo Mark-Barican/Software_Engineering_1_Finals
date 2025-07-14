@@ -242,12 +242,11 @@ export async function updateUser(req: Request, res: Response) {
       }
     }
 
-    // Check if userId is already taken by another user
+    // Prevent changing user ID - it's used throughout the system
     if (userId && userId !== user.userId) {
-      const existingUserId = await User.findOne({ userId });
-      if (existingUserId) {
-        return res.status(400).json({ message: "User ID is already taken" });
-      }
+      return res.status(400).json({ 
+        message: "User ID cannot be modified. It is used throughout the system for tracking loans, fines, and reservations. For major corrections, consider creating a new account." 
+      });
     }
 
     const updatedUser = await User.findByIdAndUpdate(

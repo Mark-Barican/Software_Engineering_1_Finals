@@ -742,24 +742,20 @@ export default function AdminDashboard() {
                 <Card key={user.id} className="hover:shadow-md transition-shadow">
                   <CardContent className="p-6">
                     {/* Header */}
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center gap-3">
-                        <UserAvatar user={user} size="md" />
-                        <div>
-                          <h3 className="font-semibold text-gray-900">{user.name}</h3>
-                          <p className="text-sm text-gray-600">{user.email}</p>
+                    <div className="flex items-center gap-3 mb-4">
+                      <UserAvatar user={user} size="md" />
+                      <div className="flex-1">
+                        <h3 className="font-semibold text-gray-900">{user.name}</h3>
+                        <p className="text-sm text-gray-600">{user.email}</p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <Badge className={getRoleColor(user.role)} variant="secondary">
+                            {user.role === 'user' ? 'Student' : user.role === 'librarian' ? 'Librarian' : 'Admin'}
+                          </Badge>
+                          <Badge className={getStatusColor(user.accountStatus)} variant="outline">
+                            {user.accountStatus}
+                          </Badge>
                         </div>
                       </div>
-                    </div>
-
-                    {/* Badges */}
-                    <div className="flex items-center gap-2 mb-4">
-                      <Badge className={getRoleColor(user.role)} variant="secondary">
-                        {user.role === 'user' ? 'Student' : user.role === 'librarian' ? 'Librarian' : 'Admin'}
-                      </Badge>
-                      <Badge className={getStatusColor(user.accountStatus)} variant="outline">
-                        {user.accountStatus}
-                      </Badge>
                     </div>
 
                     {/* Key Information */}
@@ -778,38 +774,31 @@ export default function AdminDashboard() {
                       </div>
                     </div>
 
-                    {/* Role-specific stats */}
+                    {/* Role-specific Activity Summary */}
                     {user.role === 'user' && (
-                      <div className="bg-gray-50 rounded-lg p-3 mb-4">
-                        <div className="grid grid-cols-2 gap-3 text-center">
+                      <div className="bg-blue-50 rounded-lg p-3 mb-4">
+                        <div className="grid grid-cols-3 gap-2 text-center">
                           <div>
                             <div className="text-lg font-bold text-blue-600">{user.currentBorrowedBooks || 0}</div>
-                            <div className="text-xs text-gray-600">Current Loans</div>
+                            <div className="text-xs text-blue-600">Active Loans</div>
                           </div>
                           <div>
                             <div className="text-lg font-bold text-green-600">{user.totalBooksBorrowed || 0}</div>
-                            <div className="text-xs text-gray-600">Total Borrowed</div>
+                            <div className="text-xs text-green-600">Total Borrowed</div>
+                          </div>
+                          <div>
+                            <div className="text-lg font-bold text-red-600">${(user.outstandingFines || 0).toFixed(0)}</div>
+                            <div className="text-xs text-red-600">Fines</div>
                           </div>
                         </div>
-                        {(user.outstandingFines || 0) > 0 && (
-                          <div className="mt-2 pt-2 border-t text-center">
-                            <div className="text-sm font-semibold text-red-600">
-                              ${(user.outstandingFines || 0).toFixed(2)} in fines
-                            </div>
-                          </div>
-                        )}
                       </div>
                     )}
 
-                    {(user.role === 'librarian' || user.role === 'admin') && (
-                      <div className="bg-gray-50 rounded-lg p-3 mb-4">
+                    {user.role === 'librarian' && (
+                      <div className="bg-purple-50 rounded-lg p-3 mb-4">
                         <div className="text-center">
-                          <div className="text-sm font-medium text-gray-900">
-                            {user.role === 'admin' ? 'System Administrator' : 'Library Staff'}
-                          </div>
-                          <div className="text-xs text-gray-600 mt-1">
-                            {user.role === 'admin' ? 'Full Access' : 'Library Operations'}
-                          </div>
+                          <div className="text-sm font-medium text-purple-900">Library Staff</div>
+                          <div className="text-xs text-purple-600 mt-1">Library Operations Access</div>
                         </div>
                       </div>
                     )}
@@ -819,11 +808,18 @@ export default function AdminDashboard() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => handleUserAction('edit', user.id)}
+                        onClick={() => handleUserAction('view', user.id)}
                         className="flex-1"
                       >
-                        <Edit className="w-4 h-4 mr-2" />
-                        Edit
+                        <Eye className="w-4 h-4 mr-2" />
+                        View
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleUserAction('edit', user.id)}
+                      >
+                        <Edit className="w-4 h-4" />
                       </Button>
                       {user.role !== 'admin' && (
                         <Button
