@@ -124,6 +124,7 @@ export default function AdminDashboard() {
   // User modal states
   const [showUserViewModal, setShowUserViewModal] = useState(false);
   const [showUserEditModal, setShowUserEditModal] = useState(false);
+  const [showUserAddModal, setShowUserAddModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState<any>(null);
 
   // Book view modal states
@@ -689,7 +690,7 @@ export default function AdminDashboard() {
                   <Search className="w-4 h-4" />
                   Search Users
                 </Button>
-                <Button className="flex items-center gap-2">
+                <Button className="flex items-center gap-2" onClick={() => setShowUserAddModal(true)}>
                   <Plus className="w-4 h-4" />
                   Add New User
                 </Button>
@@ -766,21 +767,21 @@ export default function AdminDashboard() {
 
             {/* User Cards Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-              {filteredUsers.map((user) => (
-                <Card key={user.id} className="hover:shadow-md transition-shadow">
+              {filteredUsers.map((u) => (
+                <Card key={u.id} className="hover:shadow-md transition-shadow">
                   <CardContent className="p-6">
                     {/* Header */}
                     <div className="flex items-center gap-3 mb-4">
-                      <UserAvatar user={user} size="md" />
+                      <UserAvatar user={u} size="md" />
                       <div className="flex-1">
-                        <h3 className="font-semibold text-gray-900">{user.name}</h3>
-                        <p className="text-sm text-gray-600">{user.email}</p>
+                        <h3 className="font-semibold text-gray-900">{u.name}</h3>
+                        <p className="text-sm text-gray-600">{u.email}</p>
                         <div className="flex items-center gap-2 mt-1">
-                          <Badge className={getRoleColor(user.role)} variant="secondary">
-                            {user.role === 'user' ? 'Student' : user.role === 'librarian' ? 'Librarian' : 'Admin'}
+                          <Badge className={getRoleColor(u.role)} variant="secondary">
+                            {u.role === 'user' ? 'Student' : u.role === 'librarian' ? 'Librarian' : 'Admin'}
                           </Badge>
-                          <Badge className={getStatusColor(user.accountStatus)} variant="outline">
-                            {user.accountStatus}
+                          <Badge className={getStatusColor(u.accountStatus)} variant="outline">
+                            {u.accountStatus}
                           </Badge>
                         </div>
                       </div>
@@ -790,39 +791,39 @@ export default function AdminDashboard() {
                     <div className="space-y-2 mb-4">
                       <div className="flex justify-between text-sm">
                         <span className="text-gray-600">ID:</span>
-                        <span className="font-medium">{user.userId}</span>
+                        <span className="font-medium">{u.userId}</span>
                       </div>
                       <div className="flex justify-between text-sm">
                         <span className="text-gray-600">Department:</span>
-                        <span className="font-medium text-right">{user.department}</span>
+                        <span className="font-medium text-right">{u.department}</span>
                       </div>
                       <div className="flex justify-between text-sm">
                         <span className="text-gray-600">Joined:</span>
-                        <span className="font-medium">{new Date(user.createdAt).toLocaleDateString()}</span>
+                        <span className="font-medium">{new Date(u.createdAt).toLocaleDateString()}</span>
                       </div>
                     </div>
 
                     {/* Role-specific Activity Summary */}
-                    {user.role === 'user' && (
+                    {u.role === 'user' && (
                       <div className="bg-blue-50 rounded-lg p-3 mb-4">
                         <div className="grid grid-cols-3 gap-2 text-center">
                           <div>
-                            <div className="text-lg font-bold text-blue-600">{user.currentBorrowedBooks || 0}</div>
+                            <div className="text-lg font-bold text-blue-600">{u.currentBorrowedBooks || 0}</div>
                             <div className="text-xs text-blue-600">Active Loans</div>
                           </div>
                           <div>
-                            <div className="text-lg font-bold text-green-600">{user.totalBooksBorrowed || 0}</div>
+                            <div className="text-lg font-bold text-green-600">{u.totalBooksBorrowed || 0}</div>
                             <div className="text-xs text-green-600">Total Borrowed</div>
                           </div>
                           <div>
-                            <div className="text-lg font-bold text-red-600">{(user.outstandingFines || 0).toFixed(0)}</div>
+                            <div className="text-lg font-bold text-red-600">{(u.outstandingFines || 0).toFixed(0)}</div>
                             <div className="text-xs text-red-600">Fines</div>
                           </div>
                         </div>
                       </div>
                     )}
 
-                    {user.role === 'librarian' && (
+                    {u.role === 'librarian' && (
                       <div className="bg-purple-50 rounded-lg p-3 mb-4">
                         <div className="text-center">
                           <div className="text-sm font-medium text-purple-900">Library Staff</div>
@@ -836,24 +837,27 @@ export default function AdminDashboard() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => handleUserAction('view', user.id)}
+                        onClick={() => handleUserAction('view', u.id)}
                         className="flex-1"
                       >
                         <Eye className="w-4 h-4 mr-2" />
                         View
                       </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleUserAction('edit', user.id)}
-                      >
-                        <Edit className="w-4 h-4" />
-                      </Button>
-                      {user.role !== 'admin' && (
+                      {/* Only show Edit if not admin, or if admin editing self */}
+                      {!(u.role === 'admin' && user && u.id !== user.id) && (
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => handleUserAction('delete', user.id)}
+                          onClick={() => handleUserAction('edit', u.id)}
+                        >
+                          <Edit className="w-4 h-4" />
+                        </Button>
+                      )}
+                      {u.role !== 'admin' && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleUserAction('delete', u.id)}
                           className="text-red-600 hover:text-red-700 hover:border-red-300"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -1218,6 +1222,18 @@ export default function AdminDashboard() {
         user={selectedUser}
       />
 
+      {/* User Add Modal */}
+      <UserEditModal
+        isOpen={showUserAddModal}
+        onClose={() => setShowUserAddModal(false)}
+        onSave={async (newUser) => {
+          setUsers([newUser, ...users]);
+          setShowUserAddModal(false);
+          await loadDashboardData();
+        }}
+        mode="add"
+      />
+
       {/* User Edit Modal */}
       <UserEditModal
         isOpen={showUserEditModal}
@@ -1227,17 +1243,13 @@ export default function AdminDashboard() {
         }}
         user={selectedUser}
         onSave={async (updatedUser) => {
-          // Optimistically update the user in the local state immediately
           setUsers(users.map(user => user.id === updatedUser.id ? updatedUser : user));
-          
-          // If we're viewing this user, update the selected user data too
           if (selectedUser && selectedUser.id === updatedUser.id) {
             setSelectedUser(updatedUser);
           }
-          
-          // Refresh dashboard stats in case role changes affected counts
           await loadDashboardData();
         }}
+        mode="edit"
       />
 
       {/* Book View Modal */}

@@ -234,6 +234,11 @@ export async function updateUser(req: Request, res: Response) {
       return res.status(404).json({ message: "User not found" });
     }
 
+    // Prevent admins from editing other admins
+    if (user.role === 'admin' && adminUser._id.toString() !== user._id.toString()) {
+      return res.status(403).json({ message: "Admins cannot edit other admins' profiles." });
+    }
+
     // Check if email is already taken by another user
     if (email !== user.email) {
       const existingUser = await User.findOne({ email });

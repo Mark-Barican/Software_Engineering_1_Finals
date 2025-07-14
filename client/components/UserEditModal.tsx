@@ -19,61 +19,83 @@ import { toast } from "sonner";
 interface UserEditModalProps {
   isOpen: boolean;
   onClose: () => void;
-  user: any;
+  user?: any; // user is optional for add mode
   onSave: (updatedUser: any) => void;
+  mode: 'add' | 'edit';
 }
 
-export default function UserEditModal({ isOpen, onClose, user, onSave }: UserEditModalProps) {
+export default function UserEditModal({ isOpen, onClose, user, onSave, mode }: UserEditModalProps) {
   const [formData, setFormData] = useState({
     name: "",
     email: "",
     department: "",
     role: "user",
-    status: "active"
+    status: "active",
+    password: ""
   });
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (user) {
+    if (mode === 'edit' && user) {
       setFormData({
         name: user.name || "",
         email: user.email || "",
         department: user.department || "",
         role: user.role || "user",
-        status: user.status || "active"
+        status: user.status || "active",
+        password: ""
+      });
+    } else if (mode === 'add') {
+      setFormData({
+        name: "",
+        email: "",
+        department: "",
+        role: "user",
+        status: "active",
+        password: ""
       });
     }
-  }, [user]);
+  }, [user, mode]);
 
   const handleSave = async () => {
-    if (!formData.name.trim() || !formData.email.trim()) {
-      toast.error("Name and email are required");
+    if (!formData.name.trim() || !formData.email.trim() || (mode === 'add' && !formData.password.trim())) {
+      toast.error("Name, email, and password are required");
       return;
     }
-
     setLoading(true);
     try {
       const token = localStorage.getItem('token') || sessionStorage.getItem('token');
-      const response = await fetch(`/api/admin/users/${user.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify(formData)
-      });
-
+      let response;
+      if (mode === 'edit' && user) {
+        response = await fetch(`/api/admin/users/${user.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify(formData)
+        });
+      } else {
+        response = await fetch(`/api/admin/users`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify(formData)
+        });
+      }
       if (response.ok) {
         const updatedUser = await response.json();
         onSave(updatedUser.user);
-        toast.success("User updated successfully");
+        toast.success(mode === 'add' ? "User created successfully" : "User updated successfully");
         onClose();
       } else {
         const error = await response.json();
-        toast.error(error.message || "Failed to update user");
+        toast.error(error.message || (mode === 'add' ? "Failed to create user" : "Failed to update user"));
       }
     } catch (error) {
-      toast.error("Failed to update user");
+      toast.error(mode === 'add' ? "Failed to create user" : "Failed to update user");
     } finally {
       setLoading(false);
     }
@@ -97,7 +119,7 @@ export default function UserEditModal({ isOpen, onClose, user, onSave }: UserEdi
     }
   };
 
-  if (!user) return null;
+  if (mode === 'edit' && !user) return null;
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -105,42 +127,41 @@ export default function UserEditModal({ isOpen, onClose, user, onSave }: UserEdi
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <User className="w-5 h-5" />
-            Edit User
+            {mode === 'add' ? 'Add New User' : 'Edit User'}
           </DialogTitle>
         </DialogHeader>
-
         <div className="space-y-6">
-          {/* Current User Info */}
+          {mode === 'edit' && user && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <User className="w-4 h-4" />
+                  Current Information
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center gap-4">
+                  <div className="flex-1">
+                    <p className="text-sm text-gray-600">User ID</p>
+                    <p className="font-medium font-mono bg-gray-100 px-2 py-1 rounded text-sm">{user.userId || 'Not assigned'}</p>
+                    <p className="text-xs text-gray-500 mt-1">User IDs cannot be modified once assigned</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Badge className={getRoleColor(user.role)}>
+                      {user.role}
+                    </Badge>
+                    <Badge className={getStatusColor(user.status || 'active')}>
+                      {user.status || 'active'}
+                    </Badge>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+          {/* Add/Edit Form */}
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <User className="w-4 h-4" />
-                Current Information
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center gap-4">
-                <div className="flex-1">
-                  <p className="text-sm text-gray-600">User ID</p>
-                  <p className="font-medium font-mono bg-gray-100 px-2 py-1 rounded text-sm">{user.userId || 'Not assigned'}</p>
-                  <p className="text-xs text-gray-500 mt-1">User IDs cannot be modified once assigned</p>
-                </div>
-                <div className="flex gap-2">
-                  <Badge className={getRoleColor(user.role)}>
-                    {user.role}
-                  </Badge>
-                  <Badge className={getStatusColor(user.status || 'active')}>
-                    {user.status || 'active'}
-                  </Badge>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Edit Form */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Edit User Details</CardTitle>
+              <CardTitle>{mode === 'add' ? 'New User Details' : 'Edit User Details'}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -163,7 +184,18 @@ export default function UserEditModal({ isOpen, onClose, user, onSave }: UserEdi
                   />
                 </div>
               </div>
-
+              {mode === 'add' && (
+                <div>
+                  <Label htmlFor="password">Password *</Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    value={formData.password}
+                    onChange={(e) => setFormData(prev => ({ ...prev, password: e.target.value }))}
+                    placeholder="Enter password"
+                  />
+                </div>
+              )}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="department">Department</Label>
@@ -188,7 +220,6 @@ export default function UserEditModal({ isOpen, onClose, user, onSave }: UserEdi
                   </Select>
                 </div>
               </div>
-
               <div>
                 <Label htmlFor="status">Account Status</Label>
                 <Select value={formData.status} onValueChange={(value) => setFormData(prev => ({ ...prev, status: value }))}>
@@ -204,7 +235,6 @@ export default function UserEditModal({ isOpen, onClose, user, onSave }: UserEdi
               </div>
             </CardContent>
           </Card>
-
           {/* Warning */}
           <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
             <div className="flex items-start gap-3">
@@ -220,7 +250,6 @@ export default function UserEditModal({ isOpen, onClose, user, onSave }: UserEdi
               </div>
             </div>
           </div>
-
           {/* Actions */}
           <div className="flex gap-2 justify-end">
             <Button variant="outline" onClick={onClose} disabled={loading}>
@@ -228,7 +257,7 @@ export default function UserEditModal({ isOpen, onClose, user, onSave }: UserEdi
             </Button>
             <Button onClick={handleSave} disabled={loading} className="flex items-center gap-2">
               <Save className="w-4 h-4" />
-              {loading ? 'Saving...' : 'Save Changes'}
+              {loading ? (mode === 'add' ? 'Creating...' : 'Saving...') : (mode === 'add' ? 'Create User' : 'Save Changes')}
             </Button>
           </div>
         </div>

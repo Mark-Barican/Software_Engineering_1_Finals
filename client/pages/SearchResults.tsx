@@ -130,7 +130,7 @@ export default function SearchResults() {
     if (titleSearch && !query) {
       setIsSearching(true);
     } else {
-      setLoading(true);
+    setLoading(true);
     }
     
     try {
@@ -410,19 +410,19 @@ export default function SearchResults() {
       <div className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-6 py-3">
           <div className="flex items-center justify-between">
-            <Link to="/" className="flex items-center">
+          <Link to="/" className="flex items-center">
               <img src="/logo.jpg" alt="Library Logo" className="w-8 h-8 mr-3" />
               <span className="text-xl font-semibold text-gray-900">Library</span>
-            </Link>
-            
+          </Link>
+
             <div className="text-sm text-gray-600">
               Have library access? 
-              <button 
-                onClick={handleLoginClick}
+            <button 
+              onClick={handleLoginClick}
                 className="text-blue-600 hover:text-blue-800 underline ml-1 font-medium"
-              >
-                Log in
-              </button>
+            >
+              Log in
+            </button>
             </div>
           </div>
         </div>
@@ -432,11 +432,11 @@ export default function SearchResults() {
         {/* Left Sidebar - Refine Results */}
         <div className="w-72 bg-orange-50 border-r border-gray-200 p-6">
           <h2 className="text-xl font-semibold text-gray-900 mb-6">
-            Refine Results
-          </h2>
+              Refine Results
+            </h2>
 
           {/* Content Type */}
-          <div className="mb-6">
+            <div className="mb-6">
             <div className="text-sm font-medium text-gray-700 mb-3 uppercase tracking-wide">
               CONTENT TYPE
             </div>
@@ -456,21 +456,21 @@ export default function SearchResults() {
                 poetry: "Poetry (115)"
               }).map(([key, label]) => (
                 <label key={key} className="flex items-center text-sm cursor-pointer hover:bg-orange-100 p-1 rounded transition-colors">
-                  <Checkbox 
+                      <Checkbox
                     className="mr-2" 
                     checked={contentTypes[key as keyof typeof contentTypes]}
-                    onCheckedChange={(checked) =>
+                        onCheckedChange={(checked) =>
                       handleContentTypeChange(key as keyof typeof contentTypes, checked as boolean)
-                    }
-                  />
+                        }
+                      />
                   <span className="text-gray-700">{label}</span>
-                </label>
-              ))}
+                    </label>
+                  ))}
+                </div>
             </div>
-          </div>
 
-          {/* Language */}
-          <div className="mb-6">
+            {/* Language */}
+            <div className="mb-6">
             <div className="text-sm font-medium text-gray-700 mb-3 uppercase tracking-wide">
               LANGUAGE
             </div>
@@ -492,13 +492,13 @@ export default function SearchResults() {
                <option value="Arabic">Arabic</option>
                <option value="Russian">Russian</option>
              </select>
-          </div>
+                    </div>
 
           {/* Access Type */}
           <div className="mb-6">
             <div className="text-sm font-medium text-gray-700 mb-3 uppercase tracking-wide">
               ACCESS TYPE
-            </div>
+                    </div>
             <div className="space-y-2">
               <label className="flex items-center text-sm cursor-pointer">
                 <input 
@@ -545,10 +545,10 @@ export default function SearchResults() {
                 Read online
               </label>
             </div>
-          </div>
-          
+            </div>
+
           {/* Reset Filters Button */}
-          <div className="mb-6">
+            <div className="mb-6">
             <Button
               onClick={resetFilters}
               variant="outline"
@@ -556,8 +556,8 @@ export default function SearchResults() {
             >
               Reset All Filters
             </Button>
-          </div>
-        </div>
+                  </div>
+                </div>
 
         {/* Main Content */}
         <div className="flex-1 p-6">
@@ -572,7 +572,7 @@ export default function SearchResults() {
                  query ? `${totalResults} results found` : `${totalResults} books available`}
               </p>
             </div>
-           
+
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2">
                 <span className="text-sm text-gray-600">Sort by:</span>
@@ -591,7 +591,7 @@ export default function SearchResults() {
           </div>
 
           {/* Title Search Bar */}
-          <div className="mb-6">
+            <div className="mb-6">
             <div className="relative max-w-2xl">
               <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
               <Input
@@ -601,12 +601,12 @@ export default function SearchResults() {
                 className="pl-12 pr-12 h-12 text-base border-2 border-gray-200 focus:border-orange-400 transition-colors rounded-xl"
               />
               {titleSearch && (
-                <button
+              <button
                   onClick={clearTitleSearch}
                   className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
-                >
+              >
                   <X className="w-5 h-5" />
-                </button>
+              </button>
               )}
               {isSearching && (
                 <div className="absolute right-12 top-1/2 transform -translate-y-1/2">

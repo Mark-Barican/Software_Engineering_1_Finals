@@ -211,6 +211,12 @@ export default function LibrarianDashboard() {
   const [bulkAuditResults, setBulkAuditResults] = useState<{success: number, error: number, details: {book: Book, status: 'success'|'error', message: string}[]}|null>(null);
   const [bulkAuditLoading, setBulkAuditLoading] = useState(false);
 
+  // Add state for user activity modal
+  const [showActivityModal, setShowActivityModal] = useState(false);
+  const [activityUser, setActivityUser] = useState<User | null>(null);
+  const [activityLog, setActivityLog] = useState<any[]>([]);
+  const [activityLoading, setActivityLoading] = useState(false);
+
   useEffect(() => {
     // Check if user is librarian or admin
     if (!user || !['librarian', 'admin'].includes(user.role)) {
@@ -639,7 +645,14 @@ export default function LibrarianDashboard() {
       if (res.ok) {
         const result = await res.json();
         await fetchAuditHistory(book.id);
-        alert(`Audit logged successfully!\nExpected: ${book.totalCopies}\nActual: ${actualCountNum}\nDiscrepancy: ${result.audit.discrepancy}\nStatus: ${result.audit.status}`);
+        // Refresh books list to show updated quantities
+        await loadBooks();
+        
+        const quantityMessage = result.quantitiesUpdated 
+          ? `\n\n✅ Book quantities updated in real-time!`
+          : `\n\n📊 No quantity changes needed (counts match).`;
+        
+        alert(`Audit logged successfully!\nExpected: ${book.totalCopies}\nActual: ${actualCountNum}\nDiscrepancy: ${result.audit.discrepancy}\nStatus: ${result.audit.status}${quantityMessage}`);
       } else {
         const error = await res.json();
         alert(`Failed to log audit: ${error.message}`);
@@ -671,8 +684,17 @@ export default function LibrarianDashboard() {
         })
       });
       if (res.ok) {
+        const result = await res.json();
         await fetchAuditHistory(bookId);
-        alert('Audit resolved successfully!');
+        // Refresh books list to show current state
+        await loadBooks();
+        
+        const currentState = result.currentBookState;
+        const stateMessage = currentState 
+          ? `\n\nCurrent Book State:\nTotal Copies: ${currentState.totalCopies}\nAvailable: ${currentState.availableCopies}\nOn Loan: ${currentState.activeLoans}`
+          : '';
+        
+        alert(`Audit resolved and confirmed successfully!${stateMessage}`);
       } else {
         const error = await res.json();
         alert(`Failed to resolve audit: ${error.message}`);
@@ -1002,6 +1024,27 @@ export default function LibrarianDashboard() {
     setShowBookViewModal(true);
   };
 
+  // Fetch user activity log
+  const fetchUserActivity = async (userId: string) => {
+    setActivityLoading(true);
+    try {
+      const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+      const res = await fetch(`/api/librarian/users/${userId}/activity`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setActivityLog(data.activity || []);
+      } else {
+        setActivityLog([]);
+      }
+    } catch (e) {
+      setActivityLog([]);
+    } finally {
+      setActivityLoading(false);
+    }
+  };
+
   if (!user || !['librarian', 'admin'].includes(user.role)) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
@@ -1112,7 +1155,6 @@ export default function LibrarianDashboard() {
                       </div>
                     </CardContent>
                   </Card>
-                  
                   <Card>
                     <CardContent className="p-6">
                       <div className="flex items-center">
@@ -1124,19 +1166,29 @@ export default function LibrarianDashboard() {
                       </div>
                     </CardContent>
                   </Card>
-                  
                   <Card>
                     <CardContent className="p-6">
                       <div className="flex items-center">
                         <AlertTriangle className="w-8 h-8 text-red-600" />
                         <div className="ml-4">
                           <p className="text-sm font-medium text-gray-600">Overdue</p>
-                          <p className="text-2xl font-bold text-gray-900">{stats.overdueLoans}</p>
+                          <p className="text-2xl font-bold text-gray-900">
+                            {
+                              Array.isArray(overdueLoans)
+                                ? overdueLoans.filter(loan => {
+                                    if (!loan.dueDate) return false;
+                                    if (!loan.userId || !loan.bookId) return false;
+                                    const due = new Date(loan.dueDate);
+                                    const now = new Date();
+                                    return (loan.status === 'active' || loan.status === 'overdue') && due < now;
+                                  }).length
+                                : 0
+                            }
+                          </p>
                         </div>
                       </div>
                     </CardContent>
                   </Card>
-                  
                   <Card>
                     <CardContent className="p-6">
                       <div className="flex items-center">
@@ -1148,14 +1200,13 @@ export default function LibrarianDashboard() {
                       </div>
                     </CardContent>
                   </Card>
-                  
                   <Card>
                     <CardContent className="p-6">
                       <div className="flex items-center">
                         <PesoSign className="w-8 h-8 text-orange-600" />
                         <div className="ml-4">
                           <p className="text-sm font-medium text-gray-600">Outstanding Fines</p>
-                          <p className="text-2xl font-bold text-gray-900">₱{stats.totalFines.toFixed(2)}</p>
+                          <p className="text-2xl font-bold text-gray-900">₱{stats.totalFines?.toFixed ? stats.totalFines.toFixed(2) : '0.00'}</p>
                         </div>
                       </div>
                     </CardContent>
@@ -1669,21 +1720,21 @@ export default function LibrarianDashboard() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  {loans.filter(loan => loan.status === 'active').map((loan) => (
+                {Array.isArray(loans) && loans.filter(loan => loan.status === 'active').length > 0 ? (
+                  loans.filter(loan => loan.status === 'active').map((loan) => (
                     <div key={loan._id} className="flex items-center justify-between p-4 border rounded-lg">
                       <div className="grid grid-cols-4 gap-4 flex-1">
                         <div>
-                          <p className="font-medium">{loan.userId.name}</p>
-                          <p className="text-sm text-gray-600">{loan.userId.email}</p>
+                          <p className="font-medium">{loan.userId?.name || 'N/A'}</p>
+                          <p className="text-sm text-gray-600">{loan.userId?.email || 'N/A'}</p>
                         </div>
                         <div>
-                          <p className="font-medium">{loan.bookId.title}</p>
-                          <p className="text-sm text-gray-600">by {loan.bookId.author}</p>
+                          <p className="font-medium">{loan.bookId?.title || 'N/A'}</p>
+                          <p className="text-sm text-gray-600">by {loan.bookId?.author || 'N/A'}</p>
                         </div>
                         <div>
-                          <p className="text-sm">Issued: {new Date(loan.issueDate).toLocaleDateString()}</p>
-                          <p className="text-sm">Due: {new Date(loan.dueDate).toLocaleDateString()}</p>
+                          <p className="text-sm">Issued: {loan.issueDate ? new Date(loan.issueDate).toLocaleDateString() : 'N/A'}</p>
+                          <p className="text-sm">Due: {loan.dueDate ? new Date(loan.dueDate).toLocaleDateString() : 'N/A'}</p>
                         </div>
                         <div>
                           <Badge className={getStatusColor(loan.status)}>
@@ -1695,16 +1746,14 @@ export default function LibrarianDashboard() {
                         Return Book
                       </Button>
                     </div>
-                  ))}
-                  
-                  {loans.filter(loan => loan.status === 'active').length === 0 && (
-                    <div className="text-center py-8">
-                      <UserCheck className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                      <p className="text-gray-600">No active loans</p>
-                      <p className="text-sm text-gray-500">All books have been returned or no books are currently on loan.</p>
-                    </div>
-                  )}
-                </div>
+                  ))
+                ) : (
+                  <div className="text-center py-8">
+                    <UserCheck className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                    <p className="text-gray-600">No active loans</p>
+                    <p className="text-sm text-gray-500">All books have been returned or no books are currently on loan.</p>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -1715,61 +1764,88 @@ export default function LibrarianDashboard() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <AlertTriangle className="w-5 h-5" />
-                  Overdue Books ({overdueLoans.length})
+                  Overdue Books ({
+                    overdueLoans.filter(loan => {
+                      if (!loan.dueDate) return false;
+                      if (!loan.userId || !loan.bookId) return false; // Only show if both user and book exist
+                      const due = new Date(loan.dueDate);
+                      const now = new Date();
+                      return (loan.status === 'active' || loan.status === 'overdue') && due < now;
+                    }).length
+                  })
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  {overdueLoans.map((loan) => (
-                    <div key={loan._id} className="flex items-center justify-between p-4 border rounded-lg bg-red-50">
-                      <div className="grid grid-cols-5 gap-4 flex-1">
-                        <div>
-                          <p className="font-medium">{loan.userId.name}</p>
-                          <p className="text-sm text-gray-600">{loan.userId.email}</p>
+                {Array.isArray(overdueLoans) && overdueLoans.filter(loan => {
+                  if (!loan.dueDate) return false;
+                  if (!loan.userId || !loan.bookId) return false; // Only show if both user and book exist
+                  const due = new Date(loan.dueDate);
+                  const now = new Date();
+                  return (loan.status === 'active' || loan.status === 'overdue') && due < now;
+                }).length > 0 ? (
+                  overdueLoans
+                    .filter(loan => {
+                      if (!loan.dueDate) return false;
+                      if (!loan.userId || !loan.bookId) return false; // Only show if both user and book exist
+                      const due = new Date(loan.dueDate);
+                      const now = new Date();
+                      return (loan.status === 'active' || loan.status === 'overdue') && due < now;
+                    })
+                    .map((loan) => {
+                      const due = loan.dueDate ? new Date(loan.dueDate) : null;
+                      const now = new Date();
+                      const overdueDays = due ? Math.max(0, Math.ceil((now.getTime() - due.getTime()) / (1000 * 60 * 60 * 24))) : 0;
+                      const dailyFine = 0.5;
+                      const potentialFine = overdueDays * dailyFine;
+                      return (
+                        <div key={loan._id} className="flex items-center justify-between p-4 border rounded-lg bg-red-50">
+                          <div className="grid grid-cols-5 gap-4 flex-1">
+                            <div>
+                              <p className="font-medium">{loan.userId?.name || 'N/A'}</p>
+                              <p className="text-sm text-gray-600">{loan.userId?.email || 'N/A'}</p>
+                            </div>
+                            <div>
+                              <p className="font-medium">{loan.bookId?.title || 'N/A'}</p>
+                              <p className="text-sm text-gray-600">by {loan.bookId?.author || 'N/A'}</p>
+                            </div>
+                            <div>
+                              <p className="text-sm">Due: {loan.dueDate ? new Date(loan.dueDate).toLocaleDateString() : 'N/A'}</p>
+                              <p className="text-sm font-medium text-red-600">
+                                {overdueDays > 0 ? `${overdueDays} days overdue` : 'N/A'}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-sm">Potential Fine:</p>
+                              <p className="font-medium text-red-600">₱{potentialFine.toFixed(2)}</p>
+                            </div>
+                            <div>
+                              <Badge className="bg-red-100 text-red-800">
+                                Overdue
+                              </Badge>
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              onClick={() => sendOverdueReminder(loan)}
+                            >
+                              Send Reminder
+                            </Button>
+                            <Button onClick={() => returnBook(loan._id)} size="sm">
+                              Return Book
+                            </Button>
+                          </div>
                         </div>
-                        <div>
-                          <p className="font-medium">{loan.bookId.title}</p>
-                          <p className="text-sm text-gray-600">by {loan.bookId.author}</p>
-                        </div>
-                        <div>
-                          <p className="text-sm">Due: {new Date(loan.dueDate).toLocaleDateString()}</p>
-                          <p className="text-sm font-medium text-red-600">
-                            {loan.overdueDays} days overdue
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-sm">Potential Fine:</p>
-                          <p className="font-medium text-red-600">₱{loan.potentialFine?.toFixed(2)}</p>
-                        </div>
-                        <div>
-                          <Badge className="bg-red-100 text-red-800">
-                            Overdue
-                          </Badge>
-                        </div>
-                      </div>
-                      <div className="flex gap-2">
-                        <Button 
-                          size="sm" 
-                          variant="outline"
-                          onClick={() => sendOverdueReminder(loan)}
-                        >
-                          Send Reminder
-                        </Button>
-                        <Button onClick={() => returnBook(loan._id)} size="sm">
-                          Return Book
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                  
-                  {overdueLoans.length === 0 && (
-                    <div className="text-center py-8">
-                      <AlertTriangle className="w-16 h-16 text-green-500 mx-auto mb-4" />
-                      <p className="text-gray-600">No overdue books!</p>
-                      <p className="text-sm text-gray-500">All books are returned on time.</p>
-                    </div>
-                  )}
-                </div>
+                      );
+                    })
+                ) : (
+                  <div className="text-center py-8">
+                    <AlertTriangle className="w-16 h-16 text-green-500 mx-auto mb-4" />
+                    <p className="text-gray-600">No overdue books!</p>
+                    <p className="text-sm text-gray-500">All books are returned on time.</p>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -1828,7 +1904,11 @@ export default function LibrarianDashboard() {
                         </div>
                       </div>
                       <div className="flex gap-2">
-                        <Button size="sm" variant="outline">
+                        <Button size="sm" variant="outline" onClick={async () => {
+                          setActivityUser(user);
+                          setShowActivityModal(true);
+                          await fetchUserActivity(user._id);
+                        }}>
                           View History
                         </Button>
                         <Button size="sm" variant="outline">
@@ -2271,7 +2351,7 @@ export default function LibrarianDashboard() {
             </Card>
           </TabsContent>
 
-          {/* Reports Tab */}
+          {/* Reports Tab - Restored Design */}
           <TabsContent value="reports" className="space-y-6">
             <Card>
               <CardHeader>
@@ -2285,84 +2365,64 @@ export default function LibrarianDashboard() {
                   </div>
                 ) : (
                   <>
-                    {/* Stats */}
+                    {/* Stats - Restored Card Design */}
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                       <Card>
-                        <CardContent className="p-4">
-                          <div className="text-sm text-gray-600">Total Books</div>
-                          <div className="text-2xl font-bold">{stats.totalBooks}</div>
+                        <CardContent className="p-6">
+                          <div className="flex items-center">
+                            <BookOpen className="w-8 h-8 text-blue-600" />
+                            <div className="ml-4">
+                              <p className="text-sm font-medium text-gray-600">Total Books</p>
+                              <p className="text-2xl font-bold text-gray-900">{stats.totalBooks}</p>
+                            </div>
+                          </div>
                         </CardContent>
                       </Card>
                       <Card>
-                        <CardContent className="p-4">
-                          <div className="text-sm text-gray-600">Active Loans</div>
-                          <div className="text-2xl font-bold">{stats.totalLoans}</div>
+                        <CardContent className="p-6">
+                          <div className="flex items-center">
+                            <UserCheck className="w-8 h-8 text-green-600" />
+                            <div className="ml-4">
+                              <p className="text-sm font-medium text-gray-600">Active Loans</p>
+                              <p className="text-2xl font-bold text-gray-900">{stats.totalLoans}</p>
+                            </div>
+                          </div>
                         </CardContent>
                       </Card>
                       <Card>
-                        <CardContent className="p-4">
-                          <div className="text-sm text-gray-600">Overdue Loans</div>
-                          <div className="text-2xl font-bold">{stats.overdueLoans}</div>
+                        <CardContent className="p-6">
+                          <div className="flex items-center">
+                            <AlertTriangle className="w-8 h-8 text-red-600" />
+                            <div className="ml-4">
+                              <p className="text-sm font-medium text-gray-600">Overdue</p>
+                              <p className="text-2xl font-bold text-gray-900">
+                                {
+                                  Array.isArray(overdueLoans)
+                                    ? overdueLoans.filter(loan => {
+                                        if (!loan.dueDate) return false;
+                                        if (!loan.userId || !loan.bookId) return false;
+                                        const due = new Date(loan.dueDate);
+                                        const now = new Date();
+                                        return (loan.status === 'active' || loan.status === 'overdue') && due < now;
+                                      }).length
+                                    : 0
+                                }
+                              </p>
+                            </div>
+                          </div>
                         </CardContent>
                       </Card>
                       <Card>
-                        <CardContent className="p-4">
-                          <div className="text-sm text-gray-600">Outstanding Fines</div>
-                          <div className="text-2xl font-bold">₱{stats.totalFines.toFixed(2)}</div>
+                        <CardContent className="p-6">
+                          <div className="flex items-center">
+                            <PesoSign className="w-8 h-8 text-orange-600" />
+                            <div className="ml-4">
+                              <p className="text-sm font-medium text-gray-600">Outstanding Fines</p>
+                              <p className="text-2xl font-bold text-gray-900">₱{stats.totalFines?.toFixed ? stats.totalFines.toFixed(2) : '0.00'}</p>
+                            </div>
+                          </div>
                         </CardContent>
                       </Card>
-                    </div>
-                    {/* Recent Fines */}
-                    <h3 className="font-semibold text-lg mb-2 mt-6">Recent Fines</h3>
-                    <div className="overflow-x-auto mb-6">
-                      <table className="min-w-full text-xs">
-                        <thead>
-                          <tr className="bg-gray-50">
-                            <th className="px-2 py-1">User</th>
-                            <th className="px-2 py-1">Amount</th>
-                            <th className="px-2 py-1">Reason</th>
-                            <th className="px-2 py-1">Status</th>
-                            <th className="px-2 py-1">Date</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {recentFines.map((fine) => (
-                            <tr key={fine._id}>
-                              <td className="px-2 py-1">{fine.userId?.name || 'N/A'}</td>
-                              <td className="px-2 py-1">₱{fine.amount.toFixed(2)}</td>
-                              <td className="px-2 py-1">{fine.reason}</td>
-                              <td className="px-2 py-1">{fine.status}</td>
-                              <td className="px-2 py-1">{new Date(fine.dateIssued).toLocaleDateString()}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                    {/* Recent Loans */}
-                    <h3 className="font-semibold text-lg mb-2 mt-6">Recent Loans</h3>
-                    <div className="overflow-x-auto">
-                      <table className="min-w-full text-xs">
-                        <thead>
-                          <tr className="bg-gray-50">
-                            <th className="px-2 py-1">User</th>
-                            <th className="px-2 py-1">Book</th>
-                            <th className="px-2 py-1">Status</th>
-                            <th className="px-2 py-1">Issued</th>
-                            <th className="px-2 py-1">Due</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {recentLoans.map((loan) => (
-                            <tr key={loan._id}>
-                              <td className="px-2 py-1">{loan.userId?.name || 'N/A'}</td>
-                              <td className="px-2 py-1">{loan.bookId?.title || 'N/A'}</td>
-                              <td className="px-2 py-1">{loan.status}</td>
-                              <td className="px-2 py-1">{new Date(loan.issueDate).toLocaleDateString()}</td>
-                              <td className="px-2 py-1">{new Date(loan.dueDate).toLocaleDateString()}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
                     </div>
                   </>
                 )}
@@ -2530,6 +2590,78 @@ export default function LibrarianDashboard() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* User Activity Modal */}
+      {showActivityModal && activityUser && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50"
+          onClick={e => {
+            // Only close if the background (not the modal content) is clicked
+            if (e.target === e.currentTarget) {
+              setShowActivityModal(false);
+              setActivityUser(null);
+              setActivityLog([]);
+            }
+          }}
+        >
+          <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-2xl max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+              <UserAvatar user={{ id: activityUser._id, name: activityUser.name, profilePicture: activityUser.profilePicture }} size="sm" />
+              Activity Log for {activityUser.name}
+            </h2>
+            {activityLoading ? (
+              <div className="flex items-center justify-center h-32">
+                <RefreshCw className="w-8 h-8 animate-spin text-blue-600" />
+              </div>
+            ) : activityLog.length === 0 ? (
+              <div className="text-center py-8">
+                <Info className="w-12 h-12 text-gray-400 mx-auto mb-2" />
+                <p className="text-gray-600">No activity found for this user.</p>
+              </div>
+            ) : (
+              <ul className="space-y-4">
+                {activityLog.map((entry, idx) => (
+                  <li key={idx} className="border-b pb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold capitalize">{entry.type.replace(/[-_]/g, ' ')}</span>
+                      <span className="text-xs text-gray-500">{new Date(entry.date).toLocaleString()}</span>
+                    </div>
+                    <div className="ml-4 text-sm text-gray-700">
+                      {entry.type === 'loan-issued' && (
+                        <span>Borrowed <b>{entry.details.book?.title || 'Unknown Book'}</b> (Due: {entry.details.dueDate ? new Date(entry.details.dueDate).toLocaleDateString() : 'N/A'})</span>
+                      )}
+                      {entry.type === 'loan-returned' && (
+                        <span>Returned <b>{entry.details.book?.title || 'Unknown Book'}</b>{entry.details.fineAmount > 0 ? ` (Fine: ₱${entry.details.fineAmount.toFixed(2)})` : ''}</span>
+                      )}
+                      {entry.type === 'fine' && (
+                        <span>Fine issued: <b>₱{entry.details.amount.toFixed(2)}</b> for <i>{entry.details.reason}</i> ({entry.details.status})</span>
+                      )}
+                      {entry.type === 'fine-paid' && (
+                        <span>Fine paid: <b>₱{entry.details.paidAmount?.toFixed(2) || entry.details.amount?.toFixed(2)}</b></span>
+                      )}
+                      {entry.type === 'reservation' && (
+                        <span>Reserved <b>{entry.details.book?.title || 'Unknown Book'}</b> (Status: {entry.details.status})</span>
+                      )}
+                      {entry.type === 'reservation-fulfilled' && (
+                        <span>Reservation fulfilled for <b>{entry.details.book?.title || 'Unknown Book'}</b></span>
+                      )}
+                      {entry.type === 'inventory-audit' && (
+                        <span>Performed inventory audit on <b>{entry.details.book?.title || 'Unknown Book'}</b> (Expected: {entry.details.expectedCount}, Actual: {entry.details.actualCount}, Discrepancy: {entry.details.discrepancy})</span>
+                      )}
+                      {entry.type === 'inventory-audit-resolved' && (
+                        <span>Resolved inventory audit for <b>{entry.details.book?.title || 'Unknown Book'}</b></span>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <div className="flex gap-2 justify-end mt-4">
+              <Button variant="outline" onClick={() => { setShowActivityModal(false); setActivityUser(null); setActivityLog([]); }}>Close</Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 } 
