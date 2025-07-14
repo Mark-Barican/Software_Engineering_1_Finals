@@ -5,6 +5,8 @@ interface User {
   name: string;
   email: string;
   role: 'admin' | 'librarian' | 'user';
+  userId?: string;
+  department?: string;
   preferences?: {
     notifications: boolean;
     defaultSearch: string;
@@ -76,6 +78,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           name: data.name, 
           email: data.email, 
           role: data.role || 'user',
+          userId: data.userId,
+          department: data.department,
           preferences: data.preferences,
           profilePicture: data.profilePicture
         });

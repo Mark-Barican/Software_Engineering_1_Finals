@@ -4,17 +4,18 @@ import mongoose from "mongoose";
 
 // Book schema for admin management
 const bookSchema = new mongoose.Schema({
-  title: String,
-  author: String,
-  isbn: { type: String, unique: true },
-  genre: String,
-  publishedYear: Number,
-  publisher: String,
+  title: { type: String, required: true },
+  author: { type: String, required: true },
+  isbn: { type: String, unique: true, required: true },
+  publisher: { type: String, required: true },
+  publishedYear: { type: Number, required: true },
+  genre: { type: String, required: true },
+  categories: [String],
   description: String,
   coverImage: String,
-  totalCopies: { type: Number, default: 1 },
+  totalCopies: { type: Number, default: 1, required: true },
   availableCopies: { type: Number, default: 1 },
-  categories: [String],
+  location: { type: String, required: true }, // e.g., "Shelf A3, Section B"
   language: { type: String, default: "English" },
   pages: Number,
   hasDownload: { type: Boolean, default: false },
@@ -161,7 +162,7 @@ export async function createUser(req: Request, res: Response) {
       return res.status(403).json({ message: "Admin access required" });
     }
 
-    const { name, email, password, role } = req.body;
+    const { name, email, password, role, department } = req.body;
 
     if (!name || !email || !password) {
       return res.status(400).json({ message: "Name, email, and password are required" });
@@ -176,6 +177,12 @@ export async function createUser(req: Request, res: Response) {
       return res.status(400).json({ message: "User with this email already exists" });
     }
 
+    // Import the generateUserId function from auth
+    const { generateUserId } = require('./auth');
+    
+    // Generate user ID based on role
+    const userId = await generateUserId(role, department);
+    
     const bcrypt = require('bcryptjs');
     const passwordHash = await bcrypt.hash(password, 10);
 
@@ -183,7 +190,9 @@ export async function createUser(req: Request, res: Response) {
       name,
       email,
       passwordHash,
-      role
+      role,
+      userId,
+      department: department || (role === 'user' ? 'Computer Science' : 'General')
     });
 
     res.status(201).json({
@@ -193,6 +202,8 @@ export async function createUser(req: Request, res: Response) {
         name: newUser.name,
         email: newUser.email,
         role: newUser.role,
+        userId: newUser.userId,
+        department: newUser.department,
         createdAt: newUser.createdAt
       }
     });
@@ -211,7 +222,7 @@ export async function updateUser(req: Request, res: Response) {
     }
 
     const { id } = req.params;
-    const { name, email, role } = req.body;
+    const { name, email, role, userId, department } = req.body;
 
     if (!['admin', 'librarian', 'user'].includes(role)) {
       return res.status(400).json({ message: "Invalid role" });
@@ -230,9 +241,17 @@ export async function updateUser(req: Request, res: Response) {
       }
     }
 
+    // Check if userId is already taken by another user
+    if (userId && userId !== user.userId) {
+      const existingUserId = await User.findOne({ userId });
+      if (existingUserId) {
+        return res.status(400).json({ message: "User ID is already taken" });
+      }
+    }
+
     const updatedUser = await User.findByIdAndUpdate(
       id,
-      { name, email, role },
+      { name, email, role, userId, department },
       { new: true }
     ).select('-passwordHash -resetToken -resetTokenExpiry -sessions');
 
@@ -243,6 +262,8 @@ export async function updateUser(req: Request, res: Response) {
         name: updatedUser.name,
         email: updatedUser.email,
         role: updatedUser.role,
+        userId: updatedUser.userId,
+        department: updatedUser.department,
         createdAt: updatedUser.createdAt,
         lastLogin: updatedUser.lastLogin
       }
@@ -351,11 +372,14 @@ export async function createBook(req: Request, res: Response) {
       language,
       pages,
       hasDownload,
-      hasReadOnline
+      hasReadOnline,
+      location
     } = req.body;
 
-    if (!title || !author || !isbn) {
-      return res.status(400).json({ message: "Title, author, and ISBN are required" });
+    if (!title || !author || !isbn || !publisher || !publishedYear || !genre || !location) {
+      return res.status(400).json({ 
+        message: "Title, author, ISBN, publisher, publication year, genre, and location are required" 
+      });
     }
 
     const existingBook = await Book.findOne({ isbn });
@@ -378,7 +402,8 @@ export async function createBook(req: Request, res: Response) {
       language: language || "English",
       pages,
       hasDownload: hasDownload || false,
-      hasReadOnline: hasReadOnline || false
+      hasReadOnline: hasReadOnline || false,
+      location
     });
 
     res.status(201).json({

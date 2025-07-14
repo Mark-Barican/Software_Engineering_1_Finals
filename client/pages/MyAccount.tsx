@@ -410,6 +410,20 @@ export default function MyAccount() {
                              user.role === 'librarian' ? 'Librarian' : 'Student'}
                           </Badge>
                         </div>
+                        
+                        <div className="flex justify-between items-center py-2">
+                          <span className="text-sm text-gray-600">User ID</span>
+                          <span className="text-sm font-medium font-mono bg-gray-100 px-2 py-1 rounded text-xs">
+                            {user.userId || `${user.role === 'admin' ? 'ADM' : user.role === 'librarian' ? 'LIB' : 'STD'}-25XX-${new Date().getDate().toString().padStart(2, '0')}${(new Date().getMonth() + 1).toString().padStart(2, '0')}-001`}
+                          </span>
+                        </div>
+                        
+                        {user.department && (
+                          <div className="flex justify-between items-center py-2">
+                            <span className="text-sm text-gray-600">Department</span>
+                            <span className="text-sm font-medium text-gray-900">{user.department}</span>
+                          </div>
+                        )}
                       </div>
                     </div>
 

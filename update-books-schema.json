@@ -1,0 +1,39 @@
+[
+  {
+    "collection": "books",
+    "operations": [
+      {
+        "updateMany": {
+          "filter": { "publisher": { "$exists": false } },
+          "update": {
+            "$set": {
+              "publisher": "Unknown Publisher",
+              "publishedYear": 2020,
+              "location": "Shelf A1"
+            }
+          }
+        }
+      },
+      {
+        "updateMany": {
+          "filter": { "publishedYear": { "$exists": false } },
+          "update": {
+            "$set": {
+              "publishedYear": 2020
+            }
+          }
+        }
+      },
+      {
+        "updateMany": {
+          "filter": { "location": { "$exists": false } },
+          "update": {
+            "$set": {
+              "location": "Shelf A1"
+            }
+          }
+        }
+      }
+    ]
+  }
+] 

@@ -770,42 +770,37 @@ export default function StudentDashboard() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Bell className="w-5 h-5" />
-                  Notifications & Reminders
+                  Notifications
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  {notifications.map((notification) => (
-                    <div 
-                      key={notification._id} 
-                      className={`p-4 border rounded-lg ${!notification.read ? 'bg-blue-50 border-blue-200' : ''}`}
-                    >
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <h3 className="font-medium">{notification.title}</h3>
-                          <p className="text-sm text-gray-600 mt-1">{notification.message}</p>
-                          <span className="text-xs text-gray-500">
-                            {new Date(notification.createdAt).toLocaleDateString()}
-                          </span>
+                {notifications.length === 0 ? (
+                  <div className="text-gray-500 text-center py-8">No notifications yet.</div>
+                ) : (
+                  <div className="space-y-4">
+                    {notifications.map((notif) => (
+                      <div key={notif._id} className={`p-4 border rounded-lg flex items-start gap-4 ${notif.read ? 'bg-gray-50' : 'bg-blue-50'}`}>
+                        <div className="flex-shrink-0">
+                          <Badge className="capitalize">
+                            {notif.type.replace('_', ' ')}
+                          </Badge>
                         </div>
-                        {!notification.read && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => markNotificationAsRead(notification._id)}
-                          >
-                            Mark as Read
-                          </Button>
-                        )}
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between">
+                            <h3 className="font-semibold text-lg">{notif.title}</h3>
+                            <span className="text-xs text-gray-500">{new Date(notif.createdAt).toLocaleString()}</span>
+                          </div>
+                          <p className="text-gray-700 mt-1 mb-2">{notif.message}</p>
+                          {!notif.read && (
+                            <Button size="sm" onClick={() => markNotificationAsRead(notif._id)}>
+                              Mark as Read
+                            </Button>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                  {notifications.length === 0 && (
-                    <div className="text-center py-8 text-gray-500">
-                      No notifications.
-                    </div>
-                  )}
-                </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -942,7 +937,9 @@ export default function StudentDashboard() {
                     </div>
                     <div>
                       <label className="text-sm font-medium text-gray-600">Student ID</label>
-                      <p className="mt-1">STU-{user.id.slice(-6).toUpperCase()}</p>
+                      <p className="mt-1 font-mono bg-gray-100 px-2 py-1 rounded text-sm">
+                        {user.userId || `STD-25CS-${new Date().getDate().toString().padStart(2, '0')}${(new Date().getMonth() + 1).toString().padStart(2, '0')}-001`}
+                      </p>
                     </div>
                     <div>
                       <label className="text-sm font-medium text-gray-600">Account Status</label>

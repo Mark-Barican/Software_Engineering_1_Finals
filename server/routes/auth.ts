@@ -104,10 +104,61 @@ const User = mongoose.model("User", userSchema);
 
 const JWT_SECRET = process.env.JWT_SECRET || "dev_secret";
 
+// User ID generation function
+export async function generateUserId(role: string, department?: string): Promise<string> {
+  const currentYear = new Date().getFullYear();
+  const yearSuffix = currentYear.toString().slice(-2); // Last 2 digits of year
+  const currentDate = new Date();
+  const month = (currentDate.getMonth() + 1).toString().padStart(2, '0');
+  const day = currentDate.getDate().toString().padStart(2, '0');
+  const dateCode = month + day; // MMDD format
+  
+  let prefix = '';
+  let deptCode = '';
+  
+  switch (role) {
+    case 'user': // Students
+      prefix = 'STD';
+      deptCode = department ? department.toUpperCase().slice(0, 2) : 'CS';
+      break;
+    case 'librarian':
+      prefix = 'LIB';
+      deptCode = department ? department.toUpperCase().slice(0, 2) : 'LI';
+      break;
+    case 'admin':
+      prefix = 'ADM';
+      deptCode = department ? department.toUpperCase().slice(0, 2) : 'AD';
+      break;
+    default:
+      prefix = 'USR';
+      deptCode = 'XX';
+  }
+  
+  // Get count of users created today for this role and department
+  const startOfDay = new Date();
+  startOfDay.setHours(0, 0, 0, 0);
+  
+  const endOfDay = new Date();
+  endOfDay.setHours(23, 59, 59, 999);
+  
+  const todayCount = await User.countDocuments({
+    role,
+    department: { $regex: new RegExp(`^${deptCode}`, 'i') },
+    createdAt: { $gte: startOfDay, $lte: endOfDay }
+  });
+  
+  // Generate sequential number (001, 002, etc.)
+  const sequentialNumber = (todayCount + 1).toString().padStart(3, '0');
+  
+  // Format: PREFIX-YEARDEPT-DATE-SEQ
+  // Example: STD-25CS-0714-001
+  return `${prefix}-${yearSuffix}${deptCode}-${dateCode}-${sequentialNumber}`;
+}
+
 // POST /api/register
 export async function register(req: Request, res: Response) {
   console.log("Registration attempt:", req.body);
-  const { name, email, password } = req.body;
+  const { name, email, password, department } = req.body;
   if (!name || !email || !password) {
     return res.status(400).json({ success: false, message: "All fields required" });
   }
@@ -118,12 +169,32 @@ export async function register(req: Request, res: Response) {
       console.log("User already exists");
       return res.status(400).json({ success: false, message: "Email already registered" });
     }
+    
+    // Generate user ID for new student
+    const userId = await generateUserId('user', department);
+    console.log("Generated user ID:", userId);
+    
     console.log("Hashing password...");
     const passwordHash = await bcrypt.hash(password, 10);
     console.log("Creating new user...");
-    const user = await User.create({ name, email, passwordHash });
+    const user = await User.create({ 
+      name, 
+      email, 
+      passwordHash, 
+      userId,
+      department: department || 'Computer Science'
+    });
     console.log("User created successfully:", user._id);
-    res.json({ success: true, user: { id: user._id, name: user.name, email: user.email, role: user.role } });
+    res.json({ 
+      success: true, 
+      user: { 
+        id: user._id, 
+        name: user.name, 
+        email: user.email, 
+        role: user.role,
+        userId: user.userId 
+      } 
+    });
   } catch (err) {
     console.error("Registration error:", err);
     res.status(500).json({ success: false, message: "Registration failed", error: err });
