@@ -110,8 +110,8 @@ export default function BookViewModal({
               {/* Large Book Cover */}
               <div className="flex-shrink-0">
                 <div className="w-56 h-80 bg-white rounded-2xl shadow-xl overflow-hidden border-4 border-white">
-                  {book.coverImage ? (
-                    <img 
+              {book.coverImage ? (
+                <img 
                       src={`${book.coverImage}?t=${imageKey}`} 
                       alt={`Cover of ${book.title}`}
                       className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
@@ -132,8 +132,8 @@ export default function BookViewModal({
                           `;
                         }
                       }}
-                    />
-                  ) : (
+                />
+              ) : (
                     <div className="w-full h-full bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center text-gray-400">
                       <div className="text-center p-6">
                         <BookText className="w-16 h-16 mx-auto mb-4" />
@@ -163,8 +163,8 @@ export default function BookViewModal({
                         <Download className="w-3 h-3 mr-1" />
                         Download
                       </Button>
-                    )}
-                  </div>
+              )}
+            </div>
                 )}
               </div>
 
@@ -294,21 +294,21 @@ export default function BookViewModal({
                   <div className="p-1 bg-blue-100 rounded">
                     <BookOpen className="w-4 h-4 text-blue-600" />
                   </div>
-                  Book Information
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                Book Information
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-1">
                     <label className="text-sm font-medium text-gray-500 flex items-center gap-1">
-                      <Hash className="w-3 h-3" />
+                    <Hash className="w-3 h-3" />
                       ISBN
                     </label>
                     <p className="text-sm text-gray-900 font-medium">{book.isbn || 'Not available'}</p>
-                  </div>
+                </div>
                   <div className="space-y-1">
                     <label className="text-sm font-medium text-gray-500 flex items-center gap-1">
-                      <Building className="w-3 h-3" />
+                    <Building className="w-3 h-3" />
                       Publisher
                     </label>
                     <p className="text-sm text-gray-900 font-medium">{book.publisher || 'Not specified'}</p>
@@ -319,51 +319,51 @@ export default function BookViewModal({
                       Published Year
                     </label>
                     <p className="text-sm text-gray-900 font-medium">{book.publishedYear || 'Unknown'}</p>
-                  </div>
+                </div>
                   <div className="space-y-1">
                     <label className="text-sm font-medium text-gray-500 flex items-center gap-1">
-                      <Globe className="w-3 h-3" />
+                    <Globe className="w-3 h-3" />
                       Language
                     </label>
                     <p className="text-sm text-gray-900 font-medium">{book.language || 'English'}</p>
-                  </div>
+                </div>
                   <div className="space-y-1">
                     <label className="text-sm font-medium text-gray-500 flex items-center gap-1">
-                      <FileText className="w-3 h-3" />
+                    <FileText className="w-3 h-3" />
                       Pages
                     </label>
                     <p className="text-sm text-gray-900 font-medium">{book.pages || 'Unknown'}</p>
-                  </div>
+                </div>
                   <div className="space-y-1">
                     <label className="text-sm font-medium text-gray-500 flex items-center gap-1">
-                      <MapPin className="w-3 h-3" />
+                    <MapPin className="w-3 h-3" />
                       Location
                     </label>
                     <p className="text-sm text-gray-900 font-medium">{book.location || 'Not specified'}</p>
+                </div>
+              </div>
+
+              {book.description && (
+                  <div className="space-y-2 pt-2 border-t border-gray-100">
+                  <label className="text-sm font-medium text-gray-500">Description</label>
+                    <p className="text-sm text-gray-900 leading-relaxed">{book.description}</p>
+                </div>
+              )}
+
+              {book.categories && book.categories.length > 0 && (
+                  <div className="space-y-2 pt-2 border-t border-gray-100">
+                  <label className="text-sm font-medium text-gray-500">Categories</label>
+                    <div className="flex flex-wrap gap-1">
+                    {book.categories.map((category: string, index: number) => (
+                        <Badge key={index} variant="secondary" className="text-xs px-2 py-1 bg-gray-100 text-gray-700 border-gray-200">
+                        {category}
+                      </Badge>
+                    ))}
                   </div>
                 </div>
-
-                {book.description && (
-                  <div className="space-y-2 pt-2 border-t border-gray-100">
-                    <label className="text-sm font-medium text-gray-500">Description</label>
-                    <p className="text-sm text-gray-900 leading-relaxed">{book.description}</p>
-                  </div>
-                )}
-
-                {book.categories && book.categories.length > 0 && (
-                  <div className="space-y-2 pt-2 border-t border-gray-100">
-                    <label className="text-sm font-medium text-gray-500">Categories</label>
-                    <div className="flex flex-wrap gap-1">
-                      {book.categories.map((category: string, index: number) => (
-                        <Badge key={index} variant="secondary" className="text-xs px-2 py-1 bg-gray-100 text-gray-700 border-gray-200">
-                          {category}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+              )}
+            </CardContent>
+          </Card>
 
             {/* Additional Details */}
             <Card className="shadow-sm border-gray-200 hover:shadow-md transition-shadow">
@@ -373,8 +373,8 @@ export default function BookViewModal({
                     <Package className="w-4 h-4 text-blue-600" />
                   </div>
                   Additional Details
-                </CardTitle>
-              </CardHeader>
+              </CardTitle>
+            </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-1">
                   <label className="text-sm font-medium text-gray-500 flex items-center gap-1">
@@ -411,7 +411,7 @@ export default function BookViewModal({
                           </div>
                         </div>
                       )}
-                    </div>
+                </div>
                   </div>
                 )}
 
@@ -428,10 +428,10 @@ export default function BookViewModal({
                         <span className="text-sm text-gray-600 font-medium">4.5 (128 reviews)</span>
                       </div>
                     </div>
-                  </div>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </CardContent>
+          </Card>
           </div>
 
           {/* Actions Footer */}
@@ -445,9 +445,9 @@ export default function BookViewModal({
                 className={secondaryButtonClass}
               >
                 <Edit className="w-5 h-5 mr-2" />
-                Edit Book
-              </Button>
-            </div>
+              Edit Book
+            </Button>
+          </div>
           )}
         </div>
       </DialogContent>

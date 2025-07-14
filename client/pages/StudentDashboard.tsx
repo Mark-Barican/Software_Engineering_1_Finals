@@ -751,10 +751,10 @@ export default function StudentDashboard() {
                 <div className="flex gap-4">
                   <div className="relative flex-1">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                    <Input
-                      placeholder="Search by title, author, or category..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
+                  <Input
+                    placeholder="Search by title, author, or category..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
                       className="pl-10 h-12 text-lg rounded-xl border-2 border-gray-200 focus:border-blue-400 transition-colors"
                     />
                   </div>
@@ -771,7 +771,7 @@ export default function StudentDashboard() {
                   <div className="flex items-center gap-2">
                     <Filter className="w-4 h-4 text-gray-500" />
                     <span className="text-sm font-medium text-gray-700">Filter:</span>
-                  </div>
+                          </div>
                   <select 
                     value={filterBy} 
                     onChange={(e) => setFilterBy(e.target.value)}
@@ -784,11 +784,11 @@ export default function StudentDashboard() {
                     <option value="fiction">Fiction</option>
                     <option value="non-fiction">Non-Fiction</option>
                   </select>
-
-                  <div className="flex items-center gap-2">
+                          
+                          <div className="flex items-center gap-2">
                     <SlidersHorizontal className="w-4 h-4 text-gray-500" />
                     <span className="text-sm font-medium text-gray-700">Sort by:</span>
-                  </div>
+                          </div>
                   <select 
                     value={sortBy} 
                     onChange={(e) => setSortBy(e.target.value)}
@@ -801,15 +801,15 @@ export default function StudentDashboard() {
                     <option value="available">Available First</option>
                   </select>
 
-                  <Button
-                    variant="outline"
-                    size="sm"
+                            <Button 
+                              variant="outline"
+                                size="sm"
                     onClick={loadBooks}
                     className="ml-auto h-9 px-4 font-medium bg-white hover:bg-gray-50 border-gray-200 hover:border-gray-300 text-gray-700 hover:text-gray-800 transition-all duration-200 hover:shadow-sm"
-                  >
+                              >
                     <RefreshCw className="w-4 h-4 mr-2" />
                     Refresh
-                  </Button>
+                              </Button>
                 </div>
               </div>
             </div>
@@ -877,9 +877,9 @@ export default function StudentDashboard() {
                           <Star className="w-4 h-4 text-yellow-500" />
                           Highly rated
                         </span>
-                      </div>
-                    </div>
-                  </div>
+                          </div>
+                        </div>
+                </div>
                 )}
               </CardContent>
             </Card>
@@ -1211,7 +1211,7 @@ export default function StudentDashboard() {
                           placeholder="Enter your full name"
                         />
                       ) : (
-                        <p className="mt-1 text-lg">{user.name}</p>
+                      <p className="mt-1 text-lg">{user.name}</p>
                       )}
                     </div>
                     
@@ -1227,7 +1227,7 @@ export default function StudentDashboard() {
                           placeholder="Enter your email address"
                         />
                       ) : (
-                        <p className="mt-1">{user.email}</p>
+                      <p className="mt-1">{user.email}</p>
                       )}
                     </div>
                     
@@ -1289,8 +1289,8 @@ export default function StudentDashboard() {
                       className="h-10 px-6 font-medium bg-white hover:bg-gray-50 border-gray-200 hover:border-gray-300 text-gray-700 hover:text-gray-800 transition-all duration-200 hover:shadow-sm"
                     >
                       <Edit className="w-4 h-4 mr-2" />
-                      Edit Profile
-                    </Button>
+                    Edit Profile
+                  </Button>
                   )}
                 </div>
               </CardContent>

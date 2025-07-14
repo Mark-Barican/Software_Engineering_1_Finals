@@ -632,6 +632,151 @@ export async function getUserLoans(req: Request, res: Response) {
   }
 }
 
+// GET /api/librarian/users/:id/activity - Get user's full activity log
+export async function getUserActivity(req: Request, res: Response) {
+  try {
+    const { id } = req.params;
+
+    // Fetch all loans for the user
+    const loans = await Loan.find({ userId: id })
+      .populate('bookId', 'title author isbn')
+      .populate('issuedBy', 'name')
+      .sort({ issueDate: -1 });
+
+    // Fetch all fines for the user
+    const fines = await Fine.find({ userId: id })
+      .populate('loanId', 'bookId issueDate returnDate')
+      .sort({ dateIssued: -1 });
+
+    // Fetch all reservations for the user
+    const reservations = await Reservation.find({ userId: id })
+      .populate('bookId', 'title author isbn')
+      .sort({ requestDate: -1 });
+
+    // Fetch all inventory audits performed by the user (if librarian)
+    const audits = await InventoryAudit.find({ auditedBy: id })
+      .populate('bookId', 'title author isbn')
+      .sort({ auditDate: -1 });
+
+    // Build activity log entries
+    const activity: any[] = [];
+
+    // Loans (borrowed/returned)
+    for (const loan of loans) {
+      activity.push({
+        type: 'loan-issued',
+        date: loan.issueDate,
+        details: {
+          book: loan.bookId,
+          issuedBy: loan.issuedBy,
+          dueDate: loan.dueDate,
+          status: loan.status,
+        }
+      });
+      if (loan.returnDate) {
+        activity.push({
+          type: 'loan-returned',
+          date: loan.returnDate,
+          details: {
+            book: loan.bookId,
+            issuedBy: loan.issuedBy,
+            dueDate: loan.dueDate,
+            status: loan.status,
+            fineAmount: loan.fineAmount,
+          }
+        });
+      }
+    }
+
+    // Fines
+    for (const fine of fines) {
+      activity.push({
+        type: 'fine',
+        date: fine.dateIssued,
+        details: {
+          amount: fine.amount,
+          reason: fine.reason,
+          description: fine.description,
+          status: fine.status,
+          loan: fine.loanId,
+        }
+      });
+      if (fine.datePaid) {
+        activity.push({
+          type: 'fine-paid',
+          date: fine.datePaid,
+          details: {
+            amount: fine.amount,
+            paidAmount: fine.paidAmount,
+            status: fine.status,
+            loan: fine.loanId,
+          }
+        });
+      }
+    }
+
+    // Reservations
+    for (const reservation of reservations) {
+      activity.push({
+        type: 'reservation',
+        date: reservation.requestDate,
+        details: {
+          book: reservation.bookId,
+          status: reservation.status,
+          priority: reservation.priority,
+          expiryDate: reservation.expiryDate,
+        }
+      });
+      if (reservation.status === 'fulfilled' && reservation.expiryDate) {
+        activity.push({
+          type: 'reservation-fulfilled',
+          date: reservation.expiryDate,
+          details: {
+            book: reservation.bookId,
+            status: reservation.status,
+            priority: reservation.priority,
+          }
+        });
+      }
+    }
+
+    // Audits (if user is a librarian)
+    for (const audit of audits) {
+      activity.push({
+        type: 'inventory-audit',
+        date: audit.auditDate,
+        details: {
+          book: audit.bookId,
+          expectedCount: audit.expectedCount,
+          actualCount: audit.actualCount,
+          discrepancy: audit.discrepancy,
+          status: audit.status,
+          notes: audit.notes,
+        }
+      });
+      if (audit.resolved && audit.resolvedDate) {
+        activity.push({
+          type: 'inventory-audit-resolved',
+          date: audit.resolvedDate,
+          details: {
+            book: audit.bookId,
+            status: audit.status,
+            notes: audit.notes,
+          }
+        });
+      }
+    }
+
+    // Sort all activities by date descending
+    activity.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+    res.json({ activity });
+  } catch (error) {
+    console.error('Get user activity error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+}
+
 // Export models and functions
 export { 
   Loan, 
@@ -691,6 +836,15 @@ export async function createInventoryAudit(req: Request, res: Response) {
       return res.status(400).json({ message: 'Book ID, expected count, and actual count are required' });
     }
 
+    // Validate input ranges
+    if (typeof expectedCount !== 'number' || expectedCount < 0) {
+      return res.status(400).json({ message: 'Expected count must be a non-negative number' });
+    }
+    
+    if (typeof actualCount !== 'number' || actualCount < 0) {
+      return res.status(400).json({ message: 'Actual count must be a non-negative number' });
+    }
+
     // Check if book exists
     const book = await Book.findById(bookId);
     if (!book) {
@@ -716,14 +870,56 @@ export async function createInventoryAudit(req: Request, res: Response) {
       notes: notes || ''
     });
 
+    // Update book quantities in real-time based on audit findings
+    if (discrepancy !== 0) {
+      // Get current loan count to calculate proper available copies
+      const activeLoans = await Loan.countDocuments({ 
+        bookId: book._id, 
+        status: 'active' 
+      });
+
+      // Get pending reservations count
+      const pendingReservations = await Reservation.countDocuments({
+        bookId: book._id,
+        status: 'pending'
+      });
+
+      // Update total copies to match actual count found
+      const newTotalCopies = actualCount;
+      
+      // Safety check: Ensure we don't reduce total copies below active loans
+      if (newTotalCopies < activeLoans) {
+        return res.status(400).json({ 
+          message: `Cannot set total copies to ${newTotalCopies}. There are currently ${activeLoans} active loans for this book. Please handle active loans first.` 
+        });
+      }
+      
+      // Calculate new available copies (ensure it's not negative)
+      const newAvailableCopies = Math.max(0, newTotalCopies - activeLoans);
+
+      // Warning if audit results in no available copies but there are pending reservations
+      if (newAvailableCopies === 0 && pendingReservations > 0) {
+        console.warn(`Warning: Audit resulted in 0 available copies but there are ${pendingReservations} pending reservations for book "${book.title}"`);
+      }
+
+      await Book.findByIdAndUpdate(book._id, {
+        totalCopies: newTotalCopies,
+        availableCopies: newAvailableCopies,
+        lastUpdated: new Date()
+      });
+
+      console.log(`Audit ${audit._id}: Updated book ${book.title} quantities - Total: ${book.totalCopies} → ${newTotalCopies}, Available: ${book.availableCopies} → ${newAvailableCopies}, Active Loans: ${activeLoans}`);
+    }
+
     // Populate the audit with book and user details
     const populatedAudit = await InventoryAudit.findById(audit._id)
       .populate('bookId', 'title author isbn')
       .populate('auditedBy', 'name email');
 
     res.status(201).json({
-      message: 'Inventory audit created successfully',
-      audit: populatedAudit
+      message: 'Inventory audit created and book quantities updated in real-time',
+      audit: populatedAudit,
+      quantitiesUpdated: discrepancy !== 0
     });
   } catch (error) {
     console.error('Create inventory audit error:', error);
@@ -745,6 +941,10 @@ export async function resolveInventoryAudit(req: Request, res: Response) {
       return res.status(404).json({ message: 'Inventory audit not found' });
     }
 
+    if (audit.resolved) {
+      return res.status(400).json({ message: 'Audit is already resolved' });
+    }
+
     audit.resolved = resolved || true;
     audit.resolvedBy = librarian._id;
     audit.resolvedDate = new Date();
@@ -752,15 +952,29 @@ export async function resolveInventoryAudit(req: Request, res: Response) {
     
     await audit.save();
 
+    // Get current book state for confirmation
+    const currentBook = await Book.findById(audit.bookId);
+    const currentActiveLoans = await Loan.countDocuments({ 
+      bookId: audit.bookId, 
+      status: 'active' 
+    });
+
     // Populate the audit with user details
     const populatedAudit = await InventoryAudit.findById(audit._id)
       .populate('bookId', 'title author isbn')
       .populate('auditedBy', 'name email')
       .populate('resolvedBy', 'name email');
 
+    console.log(`Audit ${audit._id} resolved by ${librarian.name}: Book "${currentBook?.title}" confirmed with ${currentBook?.totalCopies} total copies, ${currentBook?.availableCopies} available, ${currentActiveLoans} on loan`);
+
     res.json({
-      message: 'Inventory audit resolved successfully',
-      audit: populatedAudit
+      message: 'Inventory audit resolved and confirmed successfully',
+      audit: populatedAudit,
+      currentBookState: {
+        totalCopies: currentBook?.totalCopies,
+        availableCopies: currentBook?.availableCopies,
+        activeLoans: currentActiveLoans
+      }
     });
   } catch (error) {
     console.error('Resolve inventory audit error:', error);
