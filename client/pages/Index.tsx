@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Search,
   ChevronDown,
@@ -85,8 +85,48 @@ export default function Index() {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
   const [currentSlide, setCurrentSlide] = useState(0);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const suggestionsRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const { user, logout, loading, isAdmin, isLibrarian, isUser } = useAuth();
+
+  useEffect(() => {
+    if (searchQuery.length < 2) {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+    const controller = new AbortController();
+    fetch(`/api/search/suggestions?q=${encodeURIComponent(searchQuery)}`, { signal: controller.signal })
+      .then(res => res.json())
+      .then(data => {
+        setSuggestions(data.suggestions || []);
+        setShowSuggestions((data.suggestions || []).length > 0);
+      })
+      .catch(() => {});
+    return () => controller.abort();
+  }, [searchQuery]);
+
+  // Hide suggestions on outside click
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (suggestionsRef.current && !suggestionsRef.current.contains(event.target as Node)) {
+        setShowSuggestions(false);
+      }
+    }
+    if (showSuggestions) {
+      document.addEventListener("mousedown", handleClickOutside);
+    } else {
+      document.removeEventListener("mousedown", handleClickOutside);
+    }
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showSuggestions]);
+
+  const handleSuggestionClick = (suggestion: string) => {
+    setSearchQuery(suggestion);
+    setShowSuggestions(false);
+  };
 
   const handleLoginClick = () => {
     setIsLoginModalOpen(true);
@@ -266,9 +306,14 @@ export default function Index() {
               type="text"
               placeholder="Search through a collection of written works"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setShowSuggestions(true);
+              }}
               onKeyPress={handleSearchKeyPress}
               className="w-full px-6 py-5 pr-16 border-2 border-black rounded-full text-base font-abhaya placeholder-brand-text-muted focus:outline-none focus:ring-2 focus:ring-brand-orange"
+              autoComplete="off"
+              onFocus={() => { if (suggestions.length > 0) setShowSuggestions(true); }}
             />
             <button
               onClick={handleSearch}
@@ -276,6 +321,19 @@ export default function Index() {
             >
               <Search size={20} />
             </button>
+            {showSuggestions && suggestions.length > 0 && (
+              <div ref={suggestionsRef} className="absolute left-0 right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-lg z-20 max-h-60 overflow-y-auto">
+                {suggestions.map((s, i) => (
+                  <div
+                    key={i}
+                    className="px-6 py-3 cursor-pointer hover:bg-brand-orange-light/20 text-base text-black"
+                    onClick={() => handleSuggestionClick(s)}
+                  >
+                    {s}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="flex items-center justify-between">
@@ -367,7 +425,7 @@ export default function Index() {
                   <img
                     src={book.image}
                     alt={book.title}
-                    className="w-full aspect-[2/3] object-cover rounded-lg mx-auto shadow-lg"
+                    className="w-full aspect-[2/3] object-cover rounded-lg mx-auto shadow-lg transition-transform duration-300 ease-in-out hover:scale-105 hover:shadow-2xl"
                   />
                   <div className="space-y-1">
                     <p className="text-brand-text-muted text-sm font-abhaya uppercase tracking-wider">

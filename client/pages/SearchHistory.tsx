@@ -146,19 +146,23 @@ export default function SearchHistory() {
           </Link>
 
           <div className="flex items-center gap-3">
-            <button 
-              onClick={handleRegisterClick}
-              className="px-4 py-2 border border-brand-border-light rounded-full font-abhaya text-base hover:bg-gray-50 transition-colors"
-            >
-              Register
-            </button>
-            <button 
-              onClick={handleLoginClick}
-              className="flex items-center gap-2 px-4 py-2 bg-brand-orange text-white rounded-full font-abhaya text-base hover:bg-brand-orange-light transition-colors"
-            >
-              <User size={24} />
-              Log in
-            </button>
+            {loading ? null : !user ? (
+              <>
+                <button 
+                  onClick={handleRegisterClick}
+                  className="px-4 py-2 border border-brand-border-light rounded-full font-abhaya text-base hover:bg-gray-50 transition-colors"
+                >
+                  Register
+                </button>
+                <button 
+                  onClick={handleLoginClick}
+                  className="flex items-center gap-2 px-4 py-2 bg-brand-orange text-white rounded-full font-abhaya text-base hover:bg-brand-orange-light transition-colors"
+                >
+                  <User size={24} />
+                  Log in
+                </button>
+              </>
+            ) : null}
           </div>
         </div>
       </div>
