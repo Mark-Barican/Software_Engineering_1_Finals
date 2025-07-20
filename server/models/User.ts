@@ -7,4 +7,4 @@ const UserSchema = new mongoose.Schema({
   // Add any other fields you use
 });
 
-export default mongoose.models.User || mongoose.model('User', UserSchema, 'users')
+export default mongoose.models.User || mongoose.model('User', UserSchema, 'users');
