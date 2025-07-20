@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
+import { toast } from "sonner";
 
 interface User {
   id: string;
@@ -90,10 +91,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           localStorage.removeItem("token");
           sessionStorage.removeItem("token");
           setToken(null);
+          toast.error("Session expired. Please log in again.");
+        } else {
+          toast.error("Failed to connect to the server. Please try again later.");
+          setToken(null);
+          localStorage.removeItem("token");
+          sessionStorage.removeItem("token");
         }
       }
     } catch {
       setUser(null);
+      setToken(null);
+      localStorage.removeItem("token");
+      sessionStorage.removeItem("token");
+      toast.error("Could not connect to the server. Please check your connection or try again later.");
     } finally {
       setLoading(false);
     }

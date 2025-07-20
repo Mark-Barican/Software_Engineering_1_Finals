@@ -119,7 +119,7 @@ export default function Index() {
     if (searchQuery.trim()) {
       saveRecentSearch(searchQuery.trim());
       if (user) {
-        const token = localStorage.getItem('token');
+        const token = localStorage.getItem('token') || sessionStorage.getItem('token');
         fetch('/api/search/history', {
           method: 'POST',
           headers: {

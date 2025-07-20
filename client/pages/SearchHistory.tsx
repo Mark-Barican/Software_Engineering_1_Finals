@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Search, User, HelpCircle, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -63,166 +63,173 @@ export default function SearchHistory() {
   const { user, loading } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
-  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
+  const navigate = useNavigate();
 
-  useEffect(() => {
-    if (user) {
-      // Fetch from backend if logged in
-      const token = localStorage.getItem('token');
-      fetch('/api/search/history', {
-        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
-      })
-        .then(res => res.json())
-        .then(data => {
-          if (Array.isArray(data)) {
-            setRecentSearches(data.map((entry: any) => entry.query));
-          } else {
-            setRecentSearches([]);
-          }
-        })
-        .catch(() => setRecentSearches([]));
-    } else {
-      // Fallback to localStorage
-      const stored = JSON.parse(localStorage.getItem(RECENT_SEARCHES_KEY) || "[]");
-      setRecentSearches(stored);
-    }
-  }, [user]);
+  // If not loading and not logged in, show login modal and overlay
+  if (!loading && !user) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+        <LoginModal isOpen={true} onClose={() => navigate('/')} />
+      </div>
+    );
+  }
 
-  const handleLoginClick = () => setIsLoginModalOpen(true);
-  const handleRegisterClick = () => setIsRegisterModalOpen(true);
-  const handleCloseLoginModal = () => setIsLoginModalOpen(false);
-  const handleCloseRegisterModal = () => setIsRegisterModalOpen(false);
-
-  const handleDeleteBrowsingData = () => {
-    if (window.confirm("Are you sure you want to delete all browsing history? This action cannot be undone.")) {
-      if (user) {
-        const token = localStorage.getItem('token');
-        fetch('/api/search/history', {
-          method: 'DELETE',
-          headers: token ? { 'Authorization': `Bearer ${token}` } : {},
-        }).then(() => setRecentSearches([]));
-      } else {
-        localStorage.removeItem(RECENT_SEARCHES_KEY);
-        setRecentSearches([]);
+  // If not loading and logged in, proceed with page content
+  if (!loading && user) {
+    // If not loading and logged in, redirect to homepage
+    useEffect(() => {
+      if (!loading && !user) {
+        navigate("/", { replace: true });
       }
-      alert("Browsing history deleted.");
-    }
-  };
+    }, [user, loading, navigate]);
 
-  const handleRunSearch = (query: string) => {
-    window.location.href = `/search?q=${encodeURIComponent(query)}`;
-  };
+    useEffect(() => {
+      if (user) {
+        // Fetch from backend if logged in
+        const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+        fetch('/api/search/history', {
+          headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+        })
+          .then(res => res.json())
+          .then(data => {
+            if (Array.isArray(data)) {
+              setRecentSearches(data.map((entry: any) => entry.query));
+            } else {
+              setRecentSearches([]);
+            }
+          })
+          .catch(() => setRecentSearches([]));
+      } else {
+        // Fallback to localStorage
+        const stored = JSON.parse(localStorage.getItem(RECENT_SEARCHES_KEY) || "[]");
+        setRecentSearches(stored);
+      }
+    }, [user]);
 
-  return (
-    <div className="min-h-screen bg-white">
-      {/* Header */}
-      <div className="border-b border-brand-border-light bg-white">
-        {!user && !loading && (
-          <div className="flex items-center justify-center py-3 border-b border-brand-border-light">
-            <div className="flex items-center gap-2">
-              <span className="text-2xl font-alkalami">
-                Have library access?{" "}
-                <button 
-                  onClick={handleLoginClick}
-                  className="font-abhaya underline ml-3 hover:text-brand-orange transition-colors"
-                >
-                  Log in
-                </button>
-              </span>
-            </div>
-            <HelpCircle size={24} className="absolute right-12 top-3" />
-          </div>
-        )}
+    const handleRegisterClick = () => setIsRegisterModalOpen(true);
+    const handleCloseRegisterModal = () => setIsRegisterModalOpen(false);
 
-        <div className="flex items-center justify-between px-6 py-4">
-          <Link to="/" className="flex items-center">
-            <img
-              src="https://cdn.builder.io/api/v1/image/assets/TEMP/0ec6016b55469bdd045398e228e52ebbbb309517?width=158"
-              alt="Logo"
-              className="h-22 w-20"
-            />
-            <h1 className="text-7xl font-abhaya text-gray-700 ml-6">History</h1>
-          </Link>
+    const handleDeleteBrowsingData = () => {
+      if (window.confirm("Are you sure you want to delete all browsing history? This action cannot be undone.")) {
+        if (user) {
+          const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+          fetch('/api/search/history', {
+            method: 'DELETE',
+            headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+          }).then(() => setRecentSearches([]));
+        } else {
+          localStorage.removeItem(RECENT_SEARCHES_KEY);
+          setRecentSearches([]);
+        }
+        alert("Browsing history deleted.");
+      }
+    };
 
-          <div className="flex items-center gap-3">
-            <button 
-              onClick={handleRegisterClick}
-              className="px-4 py-2 border border-brand-border-light rounded-full font-abhaya text-base hover:bg-gray-50 transition-colors"
-            >
-              Register
-            </button>
-            <button 
-              onClick={handleLoginClick}
-              className="flex items-center gap-2 px-4 py-2 bg-brand-orange text-white rounded-full font-abhaya text-base hover:bg-brand-orange-light transition-colors"
-            >
-              <User size={24} />
-              Log in
-            </button>
-          </div>
-        </div>
-      </div>
+    const handleRunSearch = (query: string) => {
+      window.location.href = `/search?q=${encodeURIComponent(query)}`;
+    };
 
-      {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-6 py-8">
-        {/* Delete Browsing Data */}
-        <div className="flex items-center gap-2 mb-8">
-          <Trash2 size={24} className="text-brand-orange" />
-          <button 
-            onClick={handleDeleteBrowsingData}
-            className="text-brand-orange font-afacad text-2xl hover:underline"
-          >
-            Delete Browsing Data
-          </button>
-        </div>
-
-        {/* Search Input */}
-        <div className="max-w-4xl mx-auto mb-12">
-          <div className="relative">
-            <Input
-              type="text"
-              placeholder="Search History"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full px-6 py-4 pr-16 border-2 border-black rounded-full text-2xl font-afacad placeholder-brand-text-muted focus:outline-none focus:ring-2 focus:ring-brand-orange"
-            />
-            <Search
-              className="absolute right-6 top-1/2 transform -translate-y-1/2 text-black"
-              size={20}
-            />
-          </div>
-        </div>
-        {/* Recent Searches List */}
-        <div className="max-w-4xl mx-auto space-y-4">
-          {recentSearches.length === 0 ? (
-            <div className="text-2xl text-gray-400 text-center">No recent searches.</div>
-          ) : (
-            recentSearches
-              .filter(q => q.toLowerCase().includes(searchQuery.toLowerCase()))
-              .map((query, idx) => (
-                <div key={idx} className="flex items-center justify-between bg-white rounded-lg shadow p-4">
-                  <span className="text-2xl font-afacad text-brand-text-secondary">{query}</span>
-                  <button
-                    onClick={() => handleRunSearch(query)}
-                    className="px-4 py-2 bg-brand-orange text-white rounded-full font-abhaya text-base hover:bg-brand-orange-light transition-colors"
+    return (
+      <div className="min-h-screen bg-white">
+        {/* Header */}
+        <div className="border-b border-brand-border-light bg-white">
+          {!user && !loading && (
+            <div className="flex items-center justify-center py-3 border-b border-brand-border-light">
+              <div className="flex items-center gap-2">
+                <span className="text-2xl font-alkalami">
+                  Have library access?{" "}
+                  <button 
+                    onClick={() => navigate('/')}
+                    className="font-abhaya underline ml-3 hover:text-brand-orange transition-colors"
                   >
-                    Search Again
+                    Log in
                   </button>
-                </div>
-              ))
+                </span>
+              </div>
+              <HelpCircle size={24} className="absolute right-12 top-3" />
+            </div>
           )}
-        </div>
-      </div>
 
-      {/* Modals */}
-      <LoginModal
-        isOpen={isLoginModalOpen}
-        onClose={handleCloseLoginModal}
-      />
-      <RegisterModal
-        isOpen={isRegisterModalOpen}
-        onClose={handleCloseRegisterModal}
-      />
-    </div>
-  );
+          <div className="flex items-center justify-between px-6 py-4">
+            <Link to="/" className="flex items-center">
+              <img
+                src="https://cdn.builder.io/api/v1/image/assets/TEMP/0ec6016b55469bdd045398e228e52ebbbb309517?width=158"
+                alt="Logo"
+                className="h-22 w-20"
+              />
+              <h1 className="text-7xl font-abhaya text-gray-700 ml-6">History</h1>
+            </Link>
+
+            <div className="flex items-center gap-3">
+              <button disabled className="px-4 py-2 border border-brand-border-light rounded-full font-abhaya text-base hover:bg-gray-50 transition-colors">
+                Register
+              </button>
+              <button disabled className="flex items-center gap-2 px-4 py-2 bg-brand-orange text-white rounded-full font-abhaya text-base hover:bg-brand-orange-light transition-colors">
+                <User size={24} />
+                Log in
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Main Content */}
+        <div className="max-w-7xl mx-auto px-6 py-8">
+          {/* Delete Browsing Data */}
+          <div className="flex items-center gap-2 mb-8">
+            <Trash2 size={24} className="text-brand-orange" />
+            <button 
+              onClick={handleDeleteBrowsingData}
+              className="text-brand-orange font-afacad text-2xl hover:underline"
+            >
+              Delete Browsing Data
+            </button>
+          </div>
+
+          {/* Search Input */}
+          <div className="max-w-4xl mx-auto mb-12">
+            <div className="relative">
+              <Input
+                type="text"
+                placeholder="Search History"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full px-6 py-4 pr-16 border-2 border-black rounded-full text-2xl font-afacad placeholder-brand-text-muted focus:outline-none focus:ring-2 focus:ring-brand-orange"
+              />
+              <Search
+                className="absolute right-6 top-1/2 transform -translate-y-1/2 text-black"
+                size={20}
+              />
+            </div>
+          </div>
+          {/* Recent Searches List */}
+          <div className="max-w-4xl mx-auto space-y-4">
+            {recentSearches.length === 0 ? (
+              <div className="text-2xl text-gray-400 text-center">No recent searches.</div>
+            ) : (
+              recentSearches
+                .filter(q => q.toLowerCase().includes(searchQuery.toLowerCase()))
+                .map((query, idx) => (
+                  <div key={idx} className="flex items-center justify-between bg-white rounded-lg shadow p-4">
+                    <span className="text-2xl font-afacad text-brand-text-secondary">{query}</span>
+                    <button
+                      onClick={() => handleRunSearch(query)}
+                      className="px-4 py-2 bg-brand-orange text-white rounded-full font-abhaya text-base hover:bg-brand-orange-light transition-colors"
+                    >
+                      Search Again
+                    </button>
+                  </div>
+                ))
+            )}
+          </div>
+        </div>
+
+        {/* Modals */}
+        <RegisterModal
+          isOpen={isRegisterModalOpen}
+          onClose={handleCloseRegisterModal}
+        />
+      </div>
+    );
+  }
 }
