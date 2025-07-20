@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ChevronDown, User, HelpCircle } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import LoginModal from "../components/LoginModal";
@@ -30,22 +30,17 @@ export default function AdvancedSearch() {
     miscellaneous: false,
   });
 
-  const [selectedGenres, setSelectedGenres] = useState({
-    crime: false,
-    romance: false,
-    fantasy: false,
-    action: false,
-    mystery: false,
-    comedy: false,
-    horror: false,
-    poetry: false,
-    drama: false,
-    historical: false,
-    children: false,
-    youngAdult: false,
-    philosophical: false,
-    science: false,
-  });
+  // Use category names as keys for selectedGenres
+  const [selectedGenres, setSelectedGenres] = useState<{ [category: string]: boolean }>({});
+
+  // Dynamically fetched categories and counts
+  const [categoryCounts, setCategoryCounts] = useState<{ _id: string, count: number }[]>([]);
+
+  useEffect(() => {
+    fetch("/api/books/category-counts")
+      .then(res => res.json())
+      .then(data => setCategoryCounts(data));
+  }, []);
 
   const handleLoginClick = () => setIsLoginModalOpen(true);
   const handleRegisterClick = () => setIsRegisterModalOpen(true);
@@ -71,8 +66,8 @@ export default function AdvancedSearch() {
     setSelectedFilters((prev) => ({ ...prev, [filter]: checked }));
   };
 
-  const handleGenreChange = (genre: string, checked: boolean) => {
-    setSelectedGenres((prev) => ({ ...prev, [genre]: checked }));
+  const handleGenreChange = (category: string, checked: boolean) => {
+    setSelectedGenres((prev) => ({ ...prev, [category]: checked }));
   };
 
   const handleSubmit = () => {
@@ -124,6 +119,42 @@ export default function AdvancedSearch() {
     const hasGenre = Object.values(selectedGenres).some(Boolean);
     return hasFormInput || hasFilter || hasGenre;
   };
+
+  // Mapping from frontend keys to backend category names
+  const genreKeyToCategory: { [key: string]: string } = {
+    crime: "Crime",
+    romance: "Romance",
+    fantasy: "Fantasy",
+    action: "Action",
+    mystery: "Mystery",
+    comedy: "Comedy",
+    horror: "Horror",
+    poetry: "Poetry",
+    drama: "Drama",
+    historical: "Historical",
+    children: "Children",
+    youngAdult: "Young Adult",
+    philosophical: "Philosophical",
+    science: "Science",
+    scienceFiction: "Science Fiction",
+    nonFiction: "Non-Fiction"
+  };
+
+  // Use only the categories present in your data
+  const categories = [
+    "Fiction",
+    "Contemporary",
+    "Literary Fiction",
+    "Poetry",
+    "Asian American Literature",
+    "LGBTQ+",
+    "Horror",
+    "Thriller",
+    "Suspense",
+    "Classic",
+    "American Literature",
+    "Business"
+  ];
 
   return (
     <div className="min-h-screen bg-white">
@@ -375,31 +406,16 @@ export default function AdvancedSearch() {
           </h2>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {[
-              { key: "crime", label: "Crime (129 titles)" },
-              { key: "romance", label: "Romance (68 titles)" },
-              { key: "fantasy", label: "Fantasy (13 titles)" },
-              { key: "action", label: "Action (12 titles)" },
-              { key: "mystery", label: "Mystery (87 titles)" },
-              { key: "comedy", label: "Comedy (91 titles)" },
-              { key: "horror", label: "Horror (15 titles)" },
-              { key: "poetry", label: "Poetry (115 titles)" },
-              { key: "drama", label: "Drama (47 titles)" },
-              { key: "historical", label: "Historical (173 titles)" },
-              { key: "children", label: "Children (141 titles)" },
-              { key: "youngAdult", label: "Young Adult (12 titles)" },
-              { key: "philosophical", label: "Philosophical (17 titles)" },
-              { key: "science", label: "Science (165 titles)" },
-            ].map(({ key, label }) => (
-              <label key={key} className="flex items-center gap-3">
+            {categoryCounts.map(({ _id, count }) => (
+              <label key={_id} className="flex items-center gap-3">
                 <input
                   type="checkbox"
-                  checked={selectedGenres[key as keyof typeof selectedGenres]}
-                  onChange={(e) => handleGenreChange(key, e.target.checked)}
+                  checked={!!selectedGenres[_id]}
+                  onChange={(e) => handleGenreChange(_id, e.target.checked)}
                   className="w-4 h-5 border border-gray-400 rounded focus:outline-none focus:ring-2 focus:ring-brand-orange"
                 />
                 <span className="text-2xl font-afacad text-brand-text-secondary underline">
-                  {label}
+                  {_id} ({count} titles)
                 </span>
               </label>
             ))}

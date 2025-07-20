@@ -13,6 +13,7 @@ import { searchRoutes } from './routes/search';
 import session from "express-session";
 import passport from "passport";
 import { router as authRouter } from "./routes/auth";
+import booksRouter from "./routes/books";
 
 export function createServer() {
   const app = express();
@@ -140,8 +141,7 @@ export function createServer() {
   app.use("/api/search", searchRoutes);
 
   // Book routes
-  app.get("/api/books", getAllBooks);
-  app.get("/api/books/:id", getBookDetails);
+  app.use("/api/books", booksRouter);
 
   return app;
 }

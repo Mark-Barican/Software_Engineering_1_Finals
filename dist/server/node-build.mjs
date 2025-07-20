@@ -542,12 +542,12 @@ async function removeProfilePicture(req, res) {
     res.status(500).json({ message: "Failed to remove profile picture" });
   }
 }
-const router$1 = express__default.Router();
-router$1.get(
+const router$2 = express__default.Router();
+router$2.get(
   "/google",
   passport.authenticate("google", { scope: ["profile", "email"] })
 );
-router$1.get(
+router$2.get(
   "/google/callback",
   passport.authenticate("google", { session: false, failureRedirect: "/" }),
   (req, res) => {
@@ -711,7 +711,7 @@ const bookSchema = new mongoose.Schema({
   addedDate: { type: Date, default: Date.now },
   lastUpdated: { type: Date, default: Date.now }
 }, { timestamps: true });
-const Book = mongoose.model("Book", bookSchema);
+const Book = mongoose.model("Book", bookSchema, "books");
 async function getAdminStats(req, res) {
   try {
     const user = req.user;
@@ -2838,7 +2838,7 @@ const UserSchema = new mongoose.Schema({
   // Add any other fields you use
 });
 const User = mongoose.models.User || mongoose.model("User", UserSchema, "users");
-const router = Router();
+const router$1 = Router();
 async function searchBooks(req, res) {
   try {
     const {
@@ -3058,7 +3058,7 @@ async function getSearchSuggestions(req, res) {
     res.status(500).json({ message: "Internal server error" });
   }
 }
-router.post("/history", verifyTokenWithSession, async (req, res) => {
+router$1.post("/history", verifyTokenWithSession, async (req, res) => {
   try {
     const userId = req.userId;
     const { query } = req.body;
@@ -3089,17 +3089,17 @@ router.post("/history", verifyTokenWithSession, async (req, res) => {
     res.status(500).json({ error: "Failed to save search history" });
   }
 });
-router.get("/history", verifyTokenWithSession, async (req, res) => {
+router$1.get("/history", verifyTokenWithSession, async (req, res) => {
   const userId = req.userId;
   const history = await SearchHistory.find({ userId }).sort({ date: -1 }).limit(10);
   res.json(history);
 });
-router.delete("/history", verifyTokenWithSession, async (req, res) => {
+router$1.delete("/history", verifyTokenWithSession, async (req, res) => {
   const userId = req.userId;
   await SearchHistory.deleteMany({ userId });
   res.json({ success: true });
 });
-router.post("/history/test", async (req, res) => {
+router$1.post("/history/test", async (req, res) => {
   try {
     const { userId, query } = req.body;
     if (!userId || !query) return res.status(400).json({ error: "userId and query required" });
@@ -3111,145 +3111,21 @@ router.post("/history/test", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-const searchRoutes = router;
-async function getBookDetails(req, res) {
+const searchRoutes = router$1;
+const router = Router();
+router.get("/category-counts", async (req, res) => {
   try {
-    const { id } = req.params;
-    const book = await Book.findById(id);
-    if (!book) {
-      return res.status(404).json({ message: "Book not found" });
-    }
-    const activeLoans = await Loan.countDocuments({
-      bookId: book._id,
-      status: "active"
-    });
-    const pendingReservations = await Reservation.countDocuments({
-      bookId: book._id,
-      status: "pending"
-    });
-    const bookWithDetails = {
-      ...book.toObject(),
-      activeLoans,
-      pendingReservations,
-      status: book.availableCopies === 0 ? "out-of-stock" : book.availableCopies <= 2 ? "low-stock" : "available"
-    };
-    res.json(bookWithDetails);
-  } catch (error) {
-    console.error("Get book details error:", error);
-    res.status(500).json({ message: "Internal server error" });
+    const counts = await Book.aggregate([
+      { $match: { categories: { $exists: true, $ne: [] } } },
+      { $unwind: "$categories" },
+      { $group: { _id: "$categories", count: { $sum: 1 } } }
+    ]);
+    res.json(counts);
+  } catch (err) {
+    console.error("Category count aggregation error:", err);
+    res.status(500).json({ error: "Failed to fetch category counts", details: err.message });
   }
-}
-async function getAllBooks(req, res) {
-  try {
-    const {
-      page = 1,
-      limit = 20,
-      genre,
-      available,
-      language = "",
-      filter = "all",
-      sortBy = "title",
-      refineQuery = "",
-      title = ""
-    } = req.query;
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-    let query = {};
-    let sort = { title: 1 };
-    const genres = Array.isArray(genre) ? genre : genre ? [genre] : [];
-    if (genres.length > 0 && !genres.includes("all")) {
-      const genreConditions = genres.map((g) => ({ genre: { $regex: g, $options: "i" } }));
-      if (genreConditions.length === 1) {
-        query.genre = genreConditions[0].genre;
-      } else {
-        query.$or = genreConditions;
-      }
-    }
-    if (title) {
-      query.title = { $regex: title, $options: "i" };
-    }
-    if (language && language !== "Any Language" && language !== "All Languages") {
-      query.language = { $regex: language, $options: "i" };
-    }
-    if (refineQuery) {
-      const refineSearchTerms = [
-        { title: { $regex: refineQuery, $options: "i" } },
-        { author: { $regex: refineQuery, $options: "i" } },
-        { categories: { $in: [new RegExp(refineQuery, "i")] } },
-        { description: { $regex: refineQuery, $options: "i" } }
-      ];
-      if (query.$or) {
-        query.$and = [
-          { $or: query.$or },
-          { $or: refineSearchTerms }
-        ];
-        delete query.$or;
-      } else {
-        query.$or = refineSearchTerms;
-      }
-    }
-    if (available === "true") {
-      query.availableCopies = { $gt: 0 };
-    }
-    switch (filter) {
-      case "available":
-        query.availableCopies = { $gt: 0 };
-        break;
-      case "new":
-        query.addedDate = { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1e3) };
-        break;
-      case "download":
-        query.hasDownload = true;
-        break;
-      case "online":
-        query.hasReadOnline = true;
-        break;
-      case "popular":
-        break;
-    }
-    switch (sortBy) {
-      case "title":
-        sort = { title: 1 };
-        break;
-      case "author":
-        sort = { author: 1 };
-        break;
-      case "date":
-        sort = { publishedYear: -1 };
-        break;
-      case "relevance":
-      default:
-        sort = { title: 1 };
-        break;
-    }
-    if (filter === "new") {
-      sort = { addedDate: -1 };
-    } else if (filter === "popular") {
-      sort = { totalCopies: -1 };
-    }
-    console.log("Books API query:", JSON.stringify(query, null, 2));
-    console.log("Books API sort:", sort);
-    const books = await Book.find(query).sort(sort).skip(skip).limit(parseInt(limit)).select("title author isbn genre publishedYear publisher description coverImage totalCopies availableCopies categories language pages location addedDate hasDownload hasReadOnline");
-    const total = await Book.countDocuments(query);
-    res.json({
-      books,
-      pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
-        total,
-        pages: Math.ceil(total / parseInt(limit))
-      },
-      appliedFilters: {
-        genres,
-        language: language !== "Any Language" ? language : null,
-        accessType: filter !== "all" ? filter : null,
-        sortBy
-      }
-    });
-  } catch (error) {
-    console.error("Get all books error:", error);
-    res.status(500).json({ message: "Internal server error" });
-  }
-}
+});
 function createServer() {
   const app2 = express__default();
   const MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/library";
@@ -3291,7 +3167,7 @@ function createServer() {
   app2.post("/api/login", login);
   app2.post("/api/forgot-password", forgotPassword);
   app2.post("/api/reset-password", resetPassword);
-  app2.use("/api/auth", router$1);
+  app2.use("/api/auth", router$2);
   app2.get("/api/sessions", verifyTokenWithSession, getUserSessions);
   app2.delete("/api/sessions/:sessionId", verifyTokenWithSession, revokeSession);
   app2.delete("/api/sessions", verifyTokenWithSession, revokeAllSessions);
@@ -3345,8 +3221,7 @@ function createServer() {
   app2.get("/api/search", searchBooks);
   app2.get("/api/search/suggestions", getSearchSuggestions);
   app2.use("/api/search", searchRoutes);
-  app2.get("/api/books", getAllBooks);
-  app2.get("/api/books/:id", getBookDetails);
+  app2.use("/api/books", router);
   return app2;
 }
 const app = createServer();

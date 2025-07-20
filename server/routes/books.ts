@@ -1,6 +1,23 @@
 import { Request, Response } from "express";
 import { Book } from "./admin";
 import { Loan, Reservation } from "./librarian";
+import { Router } from "express";
+const router = Router();
+
+// Custom endpoint for category counts FIRST
+router.get("/category-counts", async (req, res) => {
+  try {
+    const counts = await Book.aggregate([
+      { $match: { categories: { $exists: true, $ne: [] } } },
+      { $unwind: "$categories" },
+      { $group: { _id: "$categories", count: { $sum: 1 } } }
+    ]);
+    res.json(counts);
+  } catch (err) {
+    console.error("Category count aggregation error:", err);
+    res.status(500).json({ error: "Failed to fetch category counts", details: err.message });
+  }
+});
 
 // GET /api/books/:id - Get book details
 export async function getBookDetails(req: Request, res: Response) {
@@ -178,3 +195,5 @@ export async function getAllBooks(req: Request, res: Response) {
     res.status(500).json({ message: 'Internal server error' });
   }
 } 
+
+export default router; 

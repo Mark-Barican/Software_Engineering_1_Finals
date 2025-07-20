@@ -24,7 +24,7 @@ const bookSchema = new mongoose.Schema({
   lastUpdated: { type: Date, default: Date.now }
 }, { timestamps: true });
 
-const Book = mongoose.model("Book", bookSchema);
+export const Book = mongoose.model("Book", bookSchema, "books");
 
 // GET /api/admin/stats - Get dashboard statistics
 export async function getAdminStats(req: Request, res: Response) {
@@ -615,7 +615,4 @@ export async function deleteBook(req: Request, res: Response) {
     console.error('Delete book error:', error);
     res.status(500).json({ message: 'Internal server error' });
   }
-}
-
-// Export Book model for use in other modules
-export { Book }; 
+} 
