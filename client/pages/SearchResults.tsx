@@ -461,16 +461,7 @@ export default function SearchResults() {
               <span className="text-xl font-semibold text-gray-900">Library</span>
           </Link>
 
-            <div className="text-sm text-gray-600">
-              Have library access? 
-            <button 
-              onClick={handleLoginClick}
-                className="text-blue-600 hover:text-blue-800 underline ml-1 font-medium"
-            >
-              Log in
-            </button>
             </div>
-          </div>
         </div>
       </div>
 

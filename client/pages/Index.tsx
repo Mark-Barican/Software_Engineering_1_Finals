@@ -329,12 +329,18 @@ export default function Index() {
           </div>
 
           <div className="flex items-center justify-between">
-            <Link
-              to="/search-history"
+            <button
+              onClick={() => {
+                if (!user) {
+                  setIsLoginModalOpen(true);
+                } else {
+                  navigate("/search-history");
+                }
+              }}
               className="px-7 py-3 border-2 border-black rounded-full font-abhaya text-base hover:bg-gray-50 transition-colors"
             >
               Search History
-            </Link>
+            </button>
             <Link
               to="/advanced-search"
               className="font-abhaya text-base underline hover:text-brand-orange transition-colors"
