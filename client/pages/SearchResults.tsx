@@ -120,10 +120,52 @@ export default function SearchResults() {
   // Debounce the title search to avoid excessive API calls
   const debouncedTitleSearch = useDebounce(titleSearch, 300);
 
+  // Advanced search params
+  const advParams = {
+    title: searchParams.get("title"),
+    author: searchParams.get("author"),
+    genre: searchParams.getAll("genre"),
+    language: searchParams.get("language"),
+    fromDate: searchParams.get("fromDate"),
+    toDate: searchParams.get("toDate"),
+    journalTitle: searchParams.get("journalTitle"),
+    isbn: searchParams.get("isbn"),
+    filter: searchParams.getAll("filter"),
+  };
+
   // Load search results
   useEffect(() => {
     performSearch(); // Always perform search, even without query
   }, [query, currentPage, sortBy, language, accessType, contentTypes, debouncedTitleSearch]);
+
+  useEffect(() => {
+    // Initialize sidebar filters from query string
+    const filters = searchParams.getAll("filter");
+    const genres = searchParams.getAll("genre");
+    const lang = searchParams.get("language");
+    const access = filters.find(f => ["available", "download", "online"].includes(f));
+
+    // Map filters to contentTypes
+    setContentTypes(prev => {
+      const updated = { ...prev };
+      // Reset all
+      Object.keys(updated).forEach(k => { updated[k] = false; });
+      // Set those present in filters/genres
+      filters.forEach(f => {
+        if (updated.hasOwnProperty(f)) updated[f] = true;
+      });
+      genres.forEach(g => {
+        // Try to match genre names to contentTypes keys
+        const key = Object.keys(updated).find(k => k.toLowerCase() === g.toLowerCase().replace(/\s/g, ""));
+        if (key) updated[key] = true;
+      });
+      return updated;
+    });
+    // Set language
+    if (lang) setLanguage(lang);
+    // Set access type
+    if (access) setAccessType(access);
+  }, [searchParams]);
 
   const performSearch = async () => {
     // Use subtle loading for real-time search, full loading for other operations
@@ -622,7 +664,9 @@ export default function SearchResults() {
           </div>
 
           {/* Active Filters Indicator */}
-          {(Object.values(contentTypes).some(Boolean) || language !== "Any Language" || accessType !== "everything" || titleSearch) && (
+          {(
+            advParams.title || advParams.author || advParams.genre.length > 0 || advParams.language || advParams.fromDate || advParams.toDate || advParams.journalTitle || advParams.isbn || advParams.filter.length > 0 || Object.entries(contentTypes).some(([_, selected]) => selected) || language !== "Any Language" || accessType !== "everything" || sortBy !== "relevance"
+          ) && (
             <div className="mb-6 p-4 bg-orange-50 border border-orange-200 rounded-lg">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-sm font-medium text-orange-800">Active Filters:</h3>
@@ -636,11 +680,62 @@ export default function SearchResults() {
                 </Button>
               </div>
               <div className="flex flex-wrap gap-2">
-                {titleSearch && (
+                {advParams.title && (
                   <Badge variant="secondary" className="bg-orange-200 text-orange-800">
-                    Title: "{titleSearch}"
+                    Title: "{advParams.title}"
                   </Badge>
                 )}
+                {advParams.author && (
+                  <Badge variant="secondary" className="bg-orange-200 text-orange-800">
+                    Author: "{advParams.author}"
+                  </Badge>
+                )}
+                {advParams.genre && advParams.genre.map((g, i) => (
+                  <Badge key={g + i} variant="secondary" className="bg-orange-200 text-orange-800">
+                    Genre: {g}
+                  </Badge>
+                ))}
+                {advParams.language && advParams.language !== "Any Language" && (
+                  <Badge variant="secondary" className="bg-orange-200 text-orange-800">
+                    Language: {advParams.language}
+                  </Badge>
+                )}
+                {advParams.fromDate && (
+                  <Badge variant="secondary" className="bg-orange-200 text-orange-800">
+                    From: {advParams.fromDate}
+                  </Badge>
+                )}
+                {advParams.toDate && (
+                  <Badge variant="secondary" className="bg-orange-200 text-orange-800">
+                    To: {advParams.toDate}
+                  </Badge>
+                )}
+                {advParams.journalTitle && (
+                  <Badge variant="secondary" className="bg-orange-200 text-orange-800">
+                    Journal/Book: "{advParams.journalTitle}"
+                  </Badge>
+                )}
+                {advParams.isbn && (
+                  <Badge variant="secondary" className="bg-orange-200 text-orange-800">
+                    ISBN: {advParams.isbn}
+                  </Badge>
+                )}
+                {advParams.filter && advParams.filter.map((f, i) => (
+                  <Badge key={f + i} variant="secondary" className="bg-orange-200 text-orange-800">
+                    Filter: {f.charAt(0).toUpperCase() + f.slice(1)}
+                  </Badge>
+                ))}
+                {/* Existing badges for contentTypes, language, accessType, sortBy */}
+                {Object.entries(contentTypes)
+                  .filter(([_, selected]) => selected)
+                  .map(([type, _]) => (
+                    <Badge key={type} variant="secondary" className="bg-orange-200 text-orange-800">
+                      {type === "nonFiction" ? "Non-Fiction" :
+                        type === "scienceFiction" ? "Science Fiction" :
+                        type === "youngAdult" ? "Young Adult" :
+                        type.charAt(0).toUpperCase() + type.slice(1)}
+                    </Badge>
+                  ))}
                 {language !== "Any Language" && (
                   <Badge variant="secondary" className="bg-orange-200 text-orange-800">
                     Language: {language}
@@ -648,28 +743,18 @@ export default function SearchResults() {
                 )}
                 {accessType !== "everything" && (
                   <Badge variant="secondary" className="bg-orange-200 text-orange-800">
-                    Access: {accessType === "available" ? "Available only" : 
-                            accessType === "download" ? "Downloadable" : 
-                            accessType === "online" ? "Read online" : accessType}
+                    Access: {accessType === "available" ? "Available only" :
+                      accessType === "download" ? "Downloadable" :
+                        accessType === "online" ? "Read online" : accessType}
                   </Badge>
                 )}
                 {sortBy !== "relevance" && (
                   <Badge variant="secondary" className="bg-orange-200 text-orange-800">
-                    Sort: {sortBy === "date" ? "By date" : 
-                           sortBy === "title" ? "By title" : 
-                           sortBy === "author" ? "By author" : sortBy}
+                    Sort: {sortBy === "date" ? "By date" :
+                      sortBy === "title" ? "By title" :
+                        sortBy === "author" ? "By author" : sortBy}
                   </Badge>
                 )}
-                {Object.entries(contentTypes)
-                  .filter(([_, selected]) => selected)
-                  .map(([type, _]) => (
-                    <Badge key={type} variant="secondary" className="bg-orange-200 text-orange-800">
-                      {type === "nonFiction" ? "Non-Fiction" : 
-                       type === "scienceFiction" ? "Science Fiction" :
-                       type === "youngAdult" ? "Young Adult" :
-                       type.charAt(0).toUpperCase() + type.slice(1)}
-                    </Badge>
-                  ))}
               </div>
             </div>
           )}

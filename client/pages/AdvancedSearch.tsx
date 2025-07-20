@@ -104,6 +104,21 @@ export default function AdvancedSearch() {
     navigate(`/search${queryString ? `?${queryString}` : ""}`);
   };
 
+  // Helper to check if any input/filter/genre is set
+  const isAnyInputSet = () => {
+    // Check form fields (ignore defaults)
+    const hasFormInput = Object.entries(formData).some(([key, value]) => {
+      if (key === 'genre' && value === 'All fields') return false;
+      if (key === 'language' && value === 'All Languages') return false;
+      return value && value.trim() !== '';
+    });
+    // Check filters
+    const hasFilter = Object.values(selectedFilters).some(Boolean);
+    // Check genres
+    const hasGenre = Object.values(selectedGenres).some(Boolean);
+    return hasFormInput || hasFilter || hasGenre;
+  };
+
   return (
     <div className="min-h-screen bg-white">
       {/* Header - Same as main page */}
@@ -137,19 +152,23 @@ export default function AdvancedSearch() {
           </div>
 
           <div className="flex items-center gap-3">
-            <button
-              onClick={handleRegisterClick}
-              className="px-4 py-2 border border-brand-border-light rounded-full font-abhaya text-base hover:bg-gray-50 transition-colors"
-            >
-              Register
-            </button>
-            <button
-              onClick={handleLoginClick}
-              className="flex items-center gap-2 px-4 py-2 bg-brand-orange text-white rounded-full font-abhaya text-base hover:bg-brand-orange-light transition-colors"
-            >
-              <User size={24} />
-              Log in
-            </button>
+            {loading ? null : !user ? (
+              <>
+                <button
+                  onClick={handleRegisterClick}
+                  className="px-4 py-2 border border-brand-border-light rounded-full font-abhaya text-base hover:bg-gray-50 transition-colors"
+                >
+                  Register
+                </button>
+                <button
+                  onClick={handleLoginClick}
+                  className="flex items-center gap-2 px-4 py-2 bg-brand-orange text-white rounded-full font-abhaya text-base hover:bg-brand-orange-light transition-colors"
+                >
+                  <User size={24} />
+                  Log in
+                </button>
+              </>
+            ) : null}
           </div>
         </div>
       </div>
@@ -220,7 +239,8 @@ export default function AdvancedSearch() {
           {/* Submit Button */}
           <button
             onClick={handleSubmit}
-            className="bg-brand-orange text-white px-8 py-4 rounded-full text-2xl font-afacad font-semibold hover:bg-brand-orange-light transition-colors"
+            className="bg-brand-orange text-white px-8 py-4 rounded-full text-2xl font-afacad font-semibold hover:bg-brand-orange-light transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={!isAnyInputSet()}
           >
             Submit Advanced Search
           </button>
