@@ -10,6 +10,9 @@ import { getStudentStats, getBooksForStudent, getStudentLoans, borrowBook, retur
 import { searchBooks, getSearchSuggestions } from "./routes/search";
 import { getBookDetails, getAllBooks } from "./routes/books";
 import { searchRoutes } from './routes/search';
+import session from "express-session";
+import passport from "passport";
+import { router as authRouter } from "./routes/auth";
 
 export function createServer() {
   const app = express();
@@ -28,6 +31,15 @@ export function createServer() {
   app.use(cors());
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
+
+  // Add session and passport middleware for OAuth
+  app.use(session({
+    secret: process.env.SESSION_SECRET || "dev_secret",
+    resave: false,
+    saveUninitialized: false,
+  }));
+  app.use(passport.initialize());
+  app.use(passport.session());
 
   // Add request logging middleware
   app.use((req, res, next) => {
@@ -58,6 +70,9 @@ export function createServer() {
   app.post("/api/login", login);
   app.post("/api/forgot-password", forgotPassword);
   app.post("/api/reset-password", resetPassword);
+
+  // Google OAuth routes
+  app.use("/api/auth", authRouter);
 
   // Session management routes
   app.get("/api/sessions", verifyTokenWithSession, getUserSessions);

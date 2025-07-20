@@ -1,12 +1,15 @@
 import path from "path";
 import * as express from "express";
-import express__default from "express";
+import express__default, { Router } from "express";
 import cors from "cors";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import mongoose from "mongoose";
 import crypto from "crypto";
 import multer from "multer";
+import passport from "passport";
+import { Strategy } from "passport-google-oauth20";
+import session from "express-session";
 const handleDemo = (req, res) => {
   const response = {
     message: "Hello from Express server"
@@ -100,8 +103,60 @@ const userSchema = new mongoose.Schema({
   }],
   lastLogin: Date
 }, { timestamps: true });
-const User = mongoose.model("User", userSchema);
+const User$1 = mongoose.model("User", userSchema);
 const JWT_SECRET = process.env.JWT_SECRET || "dev_secret";
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "456992381735-bo0lp411162a4c065lfo65ki21bj1890.apps.googleusercontent.com";
+const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || "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";
+passport.use(new Strategy({
+  clientID: GOOGLE_CLIENT_ID,
+  clientSecret: GOOGLE_CLIENT_SECRET,
+  callbackURL: "/api/auth/google/callback"
+}, async (accessToken, refreshToken, profile, done) => {
+  try {
+    let user = await User$1.findOne({ email: profile.emails[0].value });
+    if (!user) {
+      let newUserId;
+      let tries = 0;
+      while (tries < 20) {
+        newUserId = await generateUserId("user") + "-" + Math.floor(1e5 + Math.random() * 9e5);
+        try {
+          user = await User$1.create({
+            name: profile.displayName,
+            email: profile.emails[0].value,
+            passwordHash: "",
+            // No password for Google users
+            userId: newUserId,
+            accountStatus: "active"
+          });
+          break;
+        } catch (err) {
+          if (err.code === 11e3 && err.keyPattern && err.keyPattern.userId) {
+            tries++;
+          } else {
+            return done(err, null);
+          }
+        }
+      }
+      if (!user) {
+        try {
+          user = await User$1.create({
+            name: profile.displayName,
+            email: profile.emails[0].value,
+            passwordHash: "",
+            userId: profile.emails[0].value,
+            // fallback
+            accountStatus: "active"
+          });
+        } catch (err) {
+          return done(new Error("Failed to create user after multiple attempts and fallback"), null);
+        }
+      }
+    }
+    return done(null, user);
+  } catch (err) {
+    return done(err, null);
+  }
+}));
 async function generateUserId(role, department) {
   const currentYear = (/* @__PURE__ */ new Date()).getFullYear();
   const yearSuffix = currentYear.toString().slice(-2);
@@ -132,7 +187,7 @@ async function generateUserId(role, department) {
   startOfDay.setHours(0, 0, 0, 0);
   const endOfDay = /* @__PURE__ */ new Date();
   endOfDay.setHours(23, 59, 59, 999);
-  const todayCount = await User.countDocuments({
+  const todayCount = await User$1.countDocuments({
     role,
     department: { $regex: new RegExp(`^${deptCode}`, "i") },
     createdAt: { $gte: startOfDay, $lte: endOfDay }
@@ -148,7 +203,7 @@ async function register(req, res) {
   }
   try {
     console.log("Checking if user exists:", email);
-    const existing = await User.findOne({ email });
+    const existing = await User$1.findOne({ email });
     if (existing) {
       console.log("User already exists");
       return res.status(400).json({ success: false, message: "Email already registered" });
@@ -158,7 +213,7 @@ async function register(req, res) {
     console.log("Hashing password...");
     const passwordHash = await bcrypt.hash(password, 10);
     console.log("Creating new user...");
-    const user = await User.create({
+    const user = await User$1.create({
       name,
       email,
       passwordHash,
@@ -189,7 +244,7 @@ async function login(req, res) {
   }
   try {
     console.log("Looking for user:", email);
-    const user = await User.findOne({ email });
+    const user = await User$1.findOne({ email });
     console.log("User found:", user ? "Yes" : "No");
     if (!user) {
       return res.status(400).json({ success: false, message: "Invalid credentials" });
@@ -206,7 +261,7 @@ async function login(req, res) {
     const deviceInfo = parseUserAgent(userAgent, ipAddress);
     const token = jwt.sign({ userId: user._id, sessionId }, JWT_SECRET, { expiresIn: "7d" });
     console.log("Token generated successfully");
-    await User.findByIdAndUpdate(user._id, {
+    await User$1.findByIdAndUpdate(user._id, {
       $push: {
         sessions: {
           sessionId,
@@ -240,13 +295,13 @@ async function forgotPassword(req, res) {
     return res.status(400).json({ success: false, message: "Email is required" });
   }
   try {
-    const user = await User.findOne({ email });
+    const user = await User$1.findOne({ email });
     if (!user) {
       return res.json({ success: true, message: "If the email exists, a reset link has been sent" });
     }
     const resetToken = crypto.randomBytes(32).toString("hex");
     const resetTokenExpiry = new Date(Date.now() + 36e5);
-    await User.findByIdAndUpdate(user._id, {
+    await User$1.findByIdAndUpdate(user._id, {
       resetToken,
       resetTokenExpiry
     });
@@ -271,7 +326,7 @@ async function resetPassword(req, res) {
     return res.status(400).json({ success: false, message: "Password must be at least 6 characters long" });
   }
   try {
-    const user = await User.findOne({
+    const user = await User$1.findOne({
       resetToken: token,
       resetTokenExpiry: { $gt: /* @__PURE__ */ new Date() }
     });
@@ -279,7 +334,7 @@ async function resetPassword(req, res) {
       return res.status(400).json({ success: false, message: "Invalid or expired reset token" });
     }
     const passwordHash = await bcrypt.hash(password, 10);
-    await User.findByIdAndUpdate(user._id, {
+    await User$1.findByIdAndUpdate(user._id, {
       passwordHash,
       resetToken: null,
       resetTokenExpiry: null
@@ -307,18 +362,18 @@ function verifyTokenWithSession(req, res, next) {
 }
 async function getUserSessions(req, res) {
   try {
-    const user = await User.findById(req.userId);
+    const user = await User$1.findById(req.userId);
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
-    const activeSessions = user.sessions.filter((session) => session.isActive);
+    const activeSessions = user.sessions.filter((session2) => session2.isActive);
     const currentSessionId = req.sessionId;
-    const sessionsData = activeSessions.map((session) => ({
-      sessionId: session.sessionId,
-      deviceInfo: session.deviceInfo,
-      createdAt: session.createdAt,
-      lastActivity: session.lastActivity,
-      isCurrent: session.sessionId === currentSessionId
+    const sessionsData = activeSessions.map((session2) => ({
+      sessionId: session2.sessionId,
+      deviceInfo: session2.deviceInfo,
+      createdAt: session2.createdAt,
+      lastActivity: session2.lastActivity,
+      isCurrent: session2.sessionId === currentSessionId
     }));
     res.json({ success: true, sessions: sessionsData });
   } catch (err) {
@@ -334,7 +389,7 @@ async function revokeSession(req, res) {
     if (sessionId === currentSessionId) {
       return res.status(400).json({ message: "Cannot revoke current session" });
     }
-    const result = await User.findByIdAndUpdate(
+    const result = await User$1.findByIdAndUpdate(
       userId,
       { $set: { "sessions.$[elem].isActive": false } },
       { arrayFilters: [{ "elem.sessionId": sessionId }], new: true }
@@ -352,7 +407,7 @@ async function revokeAllSessions(req, res) {
   try {
     const userId = req.userId;
     const currentSessionId = req.sessionId;
-    await User.findByIdAndUpdate(
+    await User$1.findByIdAndUpdate(
       userId,
       { $set: { "sessions.$[elem].isActive": false } },
       { arrayFilters: [{ "elem.sessionId": { $ne: currentSessionId } }] }
@@ -367,7 +422,7 @@ async function refreshSession(req, res) {
   try {
     const userId = req.userId;
     const sessionId = req.sessionId;
-    await User.findByIdAndUpdate(
+    await User$1.findByIdAndUpdate(
       userId,
       { $set: { "sessions.$[elem].lastActivity": /* @__PURE__ */ new Date() } },
       { arrayFilters: [{ "elem.sessionId": sessionId }] }
@@ -385,7 +440,7 @@ function requireRole(roles) {
       if (!userId) {
         return res.status(401).json({ message: "Authentication required" });
       }
-      const user = await User.findById(userId);
+      const user = await User$1.findById(userId);
       if (!user) {
         return res.status(404).json({ message: "User not found" });
       }
@@ -436,7 +491,7 @@ async function uploadProfilePicture(req, res) {
       if (!file) {
         return res.status(400).json({ message: "No file uploaded" });
       }
-      await User.findByIdAndUpdate(user.id, {
+      await User$1.findByIdAndUpdate(user.id, {
         profilePicture: {
           data: file.buffer,
           contentType: file.mimetype,
@@ -457,7 +512,7 @@ async function uploadProfilePicture(req, res) {
 async function getProfilePicture(req, res) {
   try {
     const { userId } = req.params;
-    const user = await User.findById(userId).select("profilePicture");
+    const user = await User$1.findById(userId).select("profilePicture");
     if (!user || !user.profilePicture || !user.profilePicture.data) {
       return res.status(404).json({ message: "Profile picture not found" });
     }
@@ -475,7 +530,7 @@ async function removeProfilePicture(req, res) {
     if (!user) {
       return res.status(401).json({ message: "Unauthorized" });
     }
-    await User.findByIdAndUpdate(user.id, {
+    await User$1.findByIdAndUpdate(user.id, {
       $unset: { profilePicture: 1 }
     });
     res.json({
@@ -487,10 +542,24 @@ async function removeProfilePicture(req, res) {
     res.status(500).json({ message: "Failed to remove profile picture" });
   }
 }
+const router$1 = express__default.Router();
+router$1.get(
+  "/google",
+  passport.authenticate("google", { scope: ["profile", "email"] })
+);
+router$1.get(
+  "/google/callback",
+  passport.authenticate("google", { session: false, failureRedirect: "/" }),
+  (req, res) => {
+    const user = req.user;
+    const token = jwt.sign({ userId: user._id }, JWT_SECRET, { expiresIn: "7d" });
+    res.redirect(`http://localhost:5173/login?token=${token}`);
+  }
+);
 process.env.JWT_SECRET || "dev_secret";
 async function updateSessionActivity(userId, sessionId) {
   try {
-    await User.findByIdAndUpdate(
+    await User$1.findByIdAndUpdate(
       userId,
       { $set: { "sessions.$[elem].lastActivity": /* @__PURE__ */ new Date() } },
       { arrayFilters: [{ "elem.sessionId": sessionId }] }
@@ -503,7 +572,7 @@ async function getProfile(req, res) {
   try {
     const userId = req.userId;
     const sessionId = req.sessionId;
-    const user = await User.findById(userId).lean();
+    const user = await User$1.findById(userId).lean();
     if (!user) return res.status(404).json({ message: "User not found" });
     await updateSessionActivity(userId, sessionId);
     res.json({
@@ -529,14 +598,14 @@ async function updateProfile(req, res) {
     if (!name || !email) {
       return res.status(400).json({ message: "Name and email are required" });
     }
-    const existingUser = await User.findOne({
+    const existingUser = await User$1.findOne({
       email,
       _id: { $ne: userId }
     });
     if (existingUser) {
       return res.status(400).json({ message: "Email already in use" });
     }
-    const updatedUser = await User.findByIdAndUpdate(
+    const updatedUser = await User$1.findByIdAndUpdate(
       userId,
       {
         name,
@@ -575,7 +644,7 @@ async function changePassword(req, res) {
     if (newPassword.length < 6) {
       return res.status(400).json({ message: "New password must be at least 6 characters long" });
     }
-    const user = await User.findById(userId);
+    const user = await User$1.findById(userId);
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
@@ -584,7 +653,7 @@ async function changePassword(req, res) {
       return res.status(400).json({ message: "Current password is incorrect" });
     }
     const newPasswordHash = await bcrypt.hash(newPassword, 10);
-    await User.findByIdAndUpdate(userId, { passwordHash: newPasswordHash });
+    await User$1.findByIdAndUpdate(userId, { passwordHash: newPasswordHash });
     await updateSessionActivity(userId, sessionId);
     res.json({
       success: true,
@@ -603,7 +672,7 @@ async function deleteProfile(req, res) {
     if (!password) {
       return res.status(400).json({ message: "Password is required to delete account" });
     }
-    const user = await User.findById(userId);
+    const user = await User$1.findById(userId);
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
@@ -611,7 +680,7 @@ async function deleteProfile(req, res) {
     if (!isPasswordValid) {
       return res.status(400).json({ message: "Password is incorrect" });
     }
-    await User.findByIdAndDelete(userId);
+    await User$1.findByIdAndDelete(userId);
     res.json({
       success: true,
       message: "Account deleted successfully"
@@ -649,9 +718,9 @@ async function getAdminStats(req, res) {
     if (user.role !== "admin") {
       return res.status(403).json({ message: "Admin access required" });
     }
-    const totalUsers = await User.countDocuments();
+    const totalUsers = await User$1.countDocuments();
     const totalBooks = await Book.countDocuments();
-    const newUsersToday = await User.countDocuments({
+    const newUsersToday = await User$1.countDocuments({
       createdAt: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1e3) }
     });
     const booksAddedThisMonth = await Book.countDocuments({
@@ -684,8 +753,8 @@ async function getUsers(req, res) {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
-    const users = await User.find().select("-passwordHash -resetToken -resetTokenExpiry -sessions").sort({ createdAt: -1 }).skip(skip).limit(limit);
-    const total = await User.countDocuments();
+    const users = await User$1.find().select("-passwordHash -resetToken -resetTokenExpiry -sessions").sort({ createdAt: -1 }).skip(skip).limit(limit);
+    const total = await User$1.countDocuments();
     const { Loan: Loan2, Fine: Fine2, Reservation: Reservation2 } = require("./librarian");
     const usersWithDetails = await Promise.all(
       users.map(async (user2) => {
@@ -756,7 +825,7 @@ async function createUser(req, res) {
     if (!["admin", "librarian", "user"].includes(role)) {
       return res.status(400).json({ message: "Invalid role" });
     }
-    const existingUser = await User.findOne({ email });
+    const existingUser = await User$1.findOne({ email });
     if (existingUser) {
       return res.status(400).json({ message: "User with this email already exists" });
     }
@@ -764,7 +833,7 @@ async function createUser(req, res) {
     const userId = await generateUserId2(role, department);
     const bcrypt2 = require("bcryptjs");
     const passwordHash = await bcrypt2.hash(password, 10);
-    const newUser = await User.create({
+    const newUser = await User$1.create({
       name,
       email,
       passwordHash,
@@ -800,12 +869,15 @@ async function updateUser(req, res) {
     if (!["admin", "librarian", "user"].includes(role)) {
       return res.status(400).json({ message: "Invalid role" });
     }
-    const user = await User.findById(id);
+    const user = await User$1.findById(id);
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
+    if (user.role === "admin" && adminUser._id.toString() !== user._id.toString()) {
+      return res.status(403).json({ message: "Admins cannot edit other admins' profiles." });
+    }
     if (email !== user.email) {
-      const existingUser = await User.findOne({ email });
+      const existingUser = await User$1.findOne({ email });
       if (existingUser) {
         return res.status(400).json({ message: "Email is already taken" });
       }
@@ -815,7 +887,7 @@ async function updateUser(req, res) {
         message: "User ID cannot be modified. It is used throughout the system for tracking loans, fines, and reservations. For major corrections, consider creating a new account."
       });
     }
-    const updatedUser = await User.findByIdAndUpdate(
+    const updatedUser = await User$1.findByIdAndUpdate(
       id,
       { name, email, role, userId, department },
       { new: true }
@@ -848,7 +920,7 @@ async function deleteUser(req, res) {
     if (adminUser._id.toString() === id) {
       return res.status(400).json({ message: "Cannot delete your own account" });
     }
-    const user = await User.findById(id);
+    const user = await User$1.findById(id);
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
@@ -863,7 +935,7 @@ async function deleteUser(req, res) {
       if (unpaidFines > 0) issues.push(`${unpaidFines} unpaid fine(s)`);
       return res.status(400).json({ message: `Cannot delete user. Please resolve: ${issues.join(", ")}.` });
     }
-    await User.findByIdAndDelete(id);
+    await User$1.findByIdAndDelete(id);
     res.json({ message: "User deleted successfully" });
   } catch (error) {
     console.error("Delete user error:", error);
@@ -1311,9 +1383,9 @@ async function issueBook(req, res) {
     }
     let user;
     if (mongoose.Types.ObjectId.isValid(userId)) {
-      user = await User.findById(userId);
+      user = await User$1.findById(userId);
     } else {
-      user = await User.findOne({
+      user = await User$1.findOne({
         $or: [
           { userId },
           { email: userId }
@@ -1527,7 +1599,7 @@ async function searchUsers(req, res) {
     if (!q) {
       return res.status(400).json({ message: "Search query is required" });
     }
-    const users = await User.find({
+    const users = await User$1.find({
       $or: [
         { name: { $regex: q, $options: "i" } },
         { email: { $regex: q, $options: "i" } },
@@ -1572,6 +1644,119 @@ async function getUserLoans(req, res) {
     res.json(loans);
   } catch (error) {
     console.error("Get user loans error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+}
+async function getUserActivity(req, res) {
+  try {
+    const { id } = req.params;
+    const loans = await Loan.find({ userId: id }).populate("bookId", "title author isbn").populate("issuedBy", "name").sort({ issueDate: -1 });
+    const fines = await Fine.find({ userId: id }).populate("loanId", "bookId issueDate returnDate").sort({ dateIssued: -1 });
+    const reservations = await Reservation.find({ userId: id }).populate("bookId", "title author isbn").sort({ requestDate: -1 });
+    const audits = await InventoryAudit.find({ auditedBy: id }).populate("bookId", "title author isbn").sort({ auditDate: -1 });
+    const activity = [];
+    for (const loan of loans) {
+      activity.push({
+        type: "loan-issued",
+        date: loan.issueDate,
+        details: {
+          book: loan.bookId,
+          issuedBy: loan.issuedBy,
+          dueDate: loan.dueDate,
+          status: loan.status
+        }
+      });
+      if (loan.returnDate) {
+        activity.push({
+          type: "loan-returned",
+          date: loan.returnDate,
+          details: {
+            book: loan.bookId,
+            issuedBy: loan.issuedBy,
+            dueDate: loan.dueDate,
+            status: loan.status,
+            fineAmount: loan.fineAmount
+          }
+        });
+      }
+    }
+    for (const fine of fines) {
+      activity.push({
+        type: "fine",
+        date: fine.dateIssued,
+        details: {
+          amount: fine.amount,
+          reason: fine.reason,
+          description: fine.description,
+          status: fine.status,
+          loan: fine.loanId
+        }
+      });
+      if (fine.datePaid) {
+        activity.push({
+          type: "fine-paid",
+          date: fine.datePaid,
+          details: {
+            amount: fine.amount,
+            paidAmount: fine.paidAmount,
+            status: fine.status,
+            loan: fine.loanId
+          }
+        });
+      }
+    }
+    for (const reservation of reservations) {
+      activity.push({
+        type: "reservation",
+        date: reservation.requestDate,
+        details: {
+          book: reservation.bookId,
+          status: reservation.status,
+          priority: reservation.priority,
+          expiryDate: reservation.expiryDate
+        }
+      });
+      if (reservation.status === "fulfilled" && reservation.expiryDate) {
+        activity.push({
+          type: "reservation-fulfilled",
+          date: reservation.expiryDate,
+          details: {
+            book: reservation.bookId,
+            status: reservation.status,
+            priority: reservation.priority
+          }
+        });
+      }
+    }
+    for (const audit of audits) {
+      activity.push({
+        type: "inventory-audit",
+        date: audit.auditDate,
+        details: {
+          book: audit.bookId,
+          expectedCount: audit.expectedCount,
+          actualCount: audit.actualCount,
+          discrepancy: audit.discrepancy,
+          status: audit.status,
+          notes: audit.notes
+        }
+      });
+      if (audit.resolved && audit.resolvedDate) {
+        activity.push({
+          type: "inventory-audit-resolved",
+          date: audit.resolvedDate,
+          details: {
+            book: audit.bookId,
+            status: audit.status,
+            notes: audit.notes
+          }
+        });
+      }
+    }
+    activity.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    res.json({ activity });
+  } catch (error) {
+    console.error("Get user activity error:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 }
@@ -1790,7 +1975,7 @@ async function createFine(req, res) {
     if (!["overdue", "damage", "lost", "replacement", "other"].includes(reason)) {
       return res.status(400).json({ message: "Invalid fine reason" });
     }
-    const user = await User.findById(userId);
+    const user = await User$1.findById(userId);
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
@@ -2168,7 +2353,7 @@ async function sendNotification(req, res) {
     if (!["overdue", "reservation_ready", "fine", "general", "book_reminder"].includes(type)) {
       return res.status(400).json({ message: "Invalid notification type" });
     }
-    const user = await User.findById(userId);
+    const user = await User$1.findById(userId);
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
@@ -2496,7 +2681,7 @@ async function submitBookSuggestion(req, res) {
 async function getStudentProfile(req, res) {
   try {
     const userId = req.userId;
-    const user = await User.findById(userId).select("-passwordHash -resetToken -resetTokenExpiry -sessions");
+    const user = await User$1.findById(userId).select("-passwordHash -resetToken -resetTokenExpiry -sessions");
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
@@ -2525,7 +2710,7 @@ async function borrowBook(req, res) {
     if (!bookId) {
       return res.status(400).json({ message: "Book ID is required" });
     }
-    const user = await User.findById(userId);
+    const user = await User$1.findById(userId);
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
@@ -2640,6 +2825,20 @@ async function returnStudentBook(req, res) {
     res.status(500).json({ message: "Internal server error" });
   }
 }
+const SearchHistorySchema = new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+  query: { type: String, required: true },
+  date: { type: Date, default: Date.now }
+});
+const SearchHistory = mongoose.model("SearchHistory", SearchHistorySchema, "search_history");
+const UserSchema = new mongoose.Schema({
+  email: { type: String, required: true, unique: true },
+  name: String,
+  password: String
+  // Add any other fields you use
+});
+const User = mongoose.models.User || mongoose.model("User", UserSchema, "users");
+const router = Router();
 async function searchBooks(req, res) {
   try {
     const {
@@ -2859,6 +3058,60 @@ async function getSearchSuggestions(req, res) {
     res.status(500).json({ message: "Internal server error" });
   }
 }
+router.post("/history", verifyTokenWithSession, async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { query } = req.body;
+    console.log("POST /api/search/history", { userId, query });
+    console.log("Request body:", req.body);
+    if (!query || typeof query !== "string" || !query.trim()) {
+      console.error("Query missing or invalid in request body");
+      return res.status(400).json({ error: "Query required" });
+    }
+    console.log("Looking up user...");
+    const user = await User.findById(String(userId));
+    if (!user) {
+      console.error("User not found for userId:", userId);
+      return res.status(400).json({ error: "User not found" });
+    }
+    console.log("User found:", user._id);
+    console.log("Creating search history...");
+    const newHistory = await SearchHistory.create({ userId, query });
+    console.log("Created search history:", newHistory);
+    const userHistory = await SearchHistory.find({ userId }).sort({ date: -1 });
+    if (userHistory.length > 10) {
+      const idsToDelete = userHistory.slice(10).map((doc) => doc._id);
+      await SearchHistory.deleteMany({ _id: { $in: idsToDelete } });
+    }
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Error saving search history:", err);
+    res.status(500).json({ error: "Failed to save search history" });
+  }
+});
+router.get("/history", verifyTokenWithSession, async (req, res) => {
+  const userId = req.userId;
+  const history = await SearchHistory.find({ userId }).sort({ date: -1 }).limit(10);
+  res.json(history);
+});
+router.delete("/history", verifyTokenWithSession, async (req, res) => {
+  const userId = req.userId;
+  await SearchHistory.deleteMany({ userId });
+  res.json({ success: true });
+});
+router.post("/history/test", async (req, res) => {
+  try {
+    const { userId, query } = req.body;
+    if (!userId || !query) return res.status(400).json({ error: "userId and query required" });
+    const user = await User.findById(String(userId));
+    if (!user) return res.status(404).json({ error: "User not found" });
+    const newHistory = await SearchHistory.create({ userId, query });
+    res.json({ success: true, newHistory });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+const searchRoutes = router;
 async function getBookDetails(req, res) {
   try {
     const { id } = req.params;
@@ -3010,6 +3263,13 @@ function createServer() {
   app2.use(cors());
   app2.use(express__default.json());
   app2.use(express__default.urlencoded({ extended: true }));
+  app2.use(session({
+    secret: process.env.SESSION_SECRET || "dev_secret",
+    resave: false,
+    saveUninitialized: false
+  }));
+  app2.use(passport.initialize());
+  app2.use(passport.session());
   app2.use((req, res, next) => {
     if (req.path.startsWith("/api/")) {
       console.log(`${req.method} ${req.path}`);
@@ -3031,6 +3291,7 @@ function createServer() {
   app2.post("/api/login", login);
   app2.post("/api/forgot-password", forgotPassword);
   app2.post("/api/reset-password", resetPassword);
+  app2.use("/api/auth", router$1);
   app2.get("/api/sessions", verifyTokenWithSession, getUserSessions);
   app2.delete("/api/sessions/:sessionId", verifyTokenWithSession, revokeSession);
   app2.delete("/api/sessions", verifyTokenWithSession, revokeAllSessions);
@@ -3062,6 +3323,7 @@ function createServer() {
   app2.post("/api/librarian/notifications", verifyTokenWithSession, requireLibrarian, sendNotification);
   app2.get("/api/librarian/users/search", verifyTokenWithSession, requireLibrarian, searchUsers);
   app2.get("/api/librarian/users/:id/loans", verifyTokenWithSession, requireLibrarian, getUserLoans);
+  app2.get("/api/librarian/users/:id/activity", verifyTokenWithSession, requireLibrarian, getUserActivity);
   app2.get("/api/librarian/inventory-audits", verifyTokenWithSession, requireLibrarian, getInventoryAudits);
   app2.post("/api/librarian/inventory-audits", verifyTokenWithSession, requireLibrarian, createInventoryAudit);
   app2.put("/api/librarian/inventory-audits/:id", verifyTokenWithSession, requireLibrarian, resolveInventoryAudit);
@@ -3082,6 +3344,7 @@ function createServer() {
   app2.get("/api/student/profile", verifyTokenWithSession, requireUser, getStudentProfile);
   app2.get("/api/search", searchBooks);
   app2.get("/api/search/suggestions", getSearchSuggestions);
+  app2.use("/api/search", searchRoutes);
   app2.get("/api/books", getAllBooks);
   app2.get("/api/books/:id", getBookDetails);
   return app2;

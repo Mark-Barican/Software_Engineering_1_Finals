@@ -24,8 +24,7 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
   if (!isOpen) return null;
 
   const handleGoogleLogin = () => {
-    // Google OAuth integration would be implemented here
-    toast.info("Google OAuth integration coming soon. Please use email/password login.");
+    window.location.href = "http://localhost:3000/api/auth/google";
   };
 
   const handleLogin = async () => {

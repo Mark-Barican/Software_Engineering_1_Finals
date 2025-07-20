@@ -20,8 +20,7 @@ export default function RegisterModal({ isOpen, onClose, onRegistrationSuccess }
   if (!isOpen) return null;
 
   const handleGoogleLogin = () => {
-    // Google OAuth integration would be implemented here
-    toast.info("Google OAuth integration coming soon. Please use email/password registration.");
+    window.location.href = "http://localhost:3000/api/auth/google";
   };
 
   const handleCreateAccount = async () => {

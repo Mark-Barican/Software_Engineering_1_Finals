@@ -22,6 +22,7 @@ import StudentDashboard from "./pages/StudentDashboard";
 import { PageLoader } from "./components/LoadingOverlay";
 import PageTransition from "./components/PageTransition";
 import { ErrorBoundary, NetworkStatusIndicator } from "./components/ErrorHandler";
+import GoogleAuthHandler from "./pages/GoogleAuthHandler";
 
 const queryClient = new QueryClient();
 
@@ -77,6 +78,7 @@ const App = () => (
                 <Route path="/librarian" element={<LibrarianRoute><LibrarianDashboard /></LibrarianRoute>} />
                 <Route path="/student" element={<StudentRoute><StudentDashboard /></StudentRoute>} />
                 <Route path="/reset-password" element={<ResetPassword />} />
+                <Route path="/login" element={<GoogleAuthHandler />} />
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                 <Route path="*" element={<NotFound />} />
               </Routes>

@@ -4,6 +4,8 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import multer from "multer";
+import passport from "passport";
+import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 
 // Helper function to parse user agent and extract device info
 function parseUserAgent(userAgent: string, ipAddress: string) {
@@ -103,6 +105,60 @@ const userSchema = new mongoose.Schema({
 const User = mongoose.model("User", userSchema);
 
 const JWT_SECRET = process.env.JWT_SECRET || "dev_secret";
+
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "456992381735-bo0lp411162a4c065lfo65ki21bj1890.apps.googleusercontent.com";
+const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || "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";
+
+passport.use(new GoogleStrategy({
+  clientID: GOOGLE_CLIENT_ID,
+  clientSecret: GOOGLE_CLIENT_SECRET,
+  callbackURL: "/api/auth/google/callback"
+}, async (accessToken, refreshToken, profile, done) => {
+  try {
+    let user = await User.findOne({ email: profile.emails[0].value });
+    if (!user) {
+      let newUserId;
+      let tries = 0;
+      while (tries < 20) {
+        // Always add a random 6-digit suffix
+        newUserId = (await generateUserId('user')) + '-' + Math.floor(100000 + Math.random() * 900000);
+        try {
+          user = await User.create({
+            name: profile.displayName,
+            email: profile.emails[0].value,
+            passwordHash: "", // No password for Google users
+            userId: newUserId,
+            accountStatus: 'active',
+          });
+          break; // Success!
+        } catch (err: any) {
+          if (err.code === 11000 && err.keyPattern && err.keyPattern.userId) {
+            tries++;
+          } else {
+            return done(err, null);
+          }
+        }
+      }
+      // Fallback: use email as userId if all else fails
+      if (!user) {
+        try {
+          user = await User.create({
+            name: profile.displayName,
+            email: profile.emails[0].value,
+            passwordHash: "",
+            userId: profile.emails[0].value, // fallback
+            accountStatus: 'active',
+          });
+        } catch (err) {
+          return done(new Error("Failed to create user after multiple attempts and fallback"), null);
+        }
+      }
+    }
+    return done(null, user);
+  } catch (err) {
+    return done(err, null);
+  }
+}));
 
 // User ID generation function
 export async function generateUserId(role: string, department?: string): Promise<string> {
@@ -590,3 +646,24 @@ export async function removeProfilePicture(req: Request, res: Response) {
 
 // Export User model for use in profile endpoints
 export { User, verifyTokenWithSession }; 
+
+// Google OAuth endpoints
+import express from "express";
+const router = express.Router();
+
+router.get("/google",
+  passport.authenticate("google", { scope: ["profile", "email"] })
+);
+
+router.get("/google/callback",
+  passport.authenticate("google", { session: false, failureRedirect: "/" }),
+  (req, res) => {
+    // Issue JWT and redirect to frontend with token
+    const user = (req as any).user;
+    const token = jwt.sign({ userId: user._id }, JWT_SECRET, { expiresIn: "7d" });
+    // Redirect to frontend with token as query param
+    res.redirect(`http://localhost:5173/login?token=${token}`);
+  }
+); 
+
+export { router }; 
