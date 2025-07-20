@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { Search, User, HelpCircle, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,7 +7,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useAuth } from "../hooks/use-auth";
 import LoginModal from "../components/LoginModal";
 import RegisterModal from "../components/RegisterModal";
-import { useEffect } from "react";
 
 const RECENT_SEARCHES_KEY = "recentSearches";
 
@@ -63,13 +62,23 @@ export default function SearchHistory() {
   const { user, loading } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
-  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const navigate = useNavigate();
+
+  // If not loading and not logged in, show login modal and overlay
+  if (!loading && !user) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+        <LoginModal isOpen={true} onClose={() => navigate('/')} />
+      </div>
+    );
+  }
 
   useEffect(() => {
     if (user) {
       // Fetch from backend if logged in
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('token') || sessionStorage.getItem('token');
       fetch('/api/search/history', {
         headers: token ? { 'Authorization': `Bearer ${token}` } : {},
       })
@@ -89,15 +98,14 @@ export default function SearchHistory() {
     }
   }, [user]);
 
-  const handleLoginClick = () => setIsLoginModalOpen(true);
   const handleRegisterClick = () => setIsRegisterModalOpen(true);
-  const handleCloseLoginModal = () => setIsLoginModalOpen(false);
+  const handleLoginClick = () => setIsLoginModalOpen(true);
   const handleCloseRegisterModal = () => setIsRegisterModalOpen(false);
 
   const handleDeleteBrowsingData = () => {
     if (window.confirm("Are you sure you want to delete all browsing history? This action cannot be undone.")) {
       if (user) {
-        const token = localStorage.getItem('token');
+        const token = localStorage.getItem('token') || sessionStorage.getItem('token');
         fetch('/api/search/history', {
           method: 'DELETE',
           headers: token ? { 'Authorization': `Bearer ${token}` } : {},
@@ -123,7 +131,7 @@ export default function SearchHistory() {
             <div className="flex items-center gap-2">
               <span className="text-2xl font-alkalami">
                 Have library access?{" "}
-                <button 
+                <button
                   onClick={handleLoginClick}
                   className="font-abhaya underline ml-3 hover:text-brand-orange transition-colors"
                 >
@@ -148,13 +156,13 @@ export default function SearchHistory() {
           <div className="flex items-center gap-3">
             {loading ? null : !user ? (
               <>
-                <button 
+                <button
                   onClick={handleRegisterClick}
                   className="px-4 py-2 border border-brand-border-light rounded-full font-abhaya text-base hover:bg-gray-50 transition-colors"
                 >
                   Register
                 </button>
-                <button 
+                <button
                   onClick={handleLoginClick}
                   className="flex items-center gap-2 px-4 py-2 bg-brand-orange text-white rounded-full font-abhaya text-base hover:bg-brand-orange-light transition-colors"
                 >
@@ -172,7 +180,7 @@ export default function SearchHistory() {
         {/* Delete Browsing Data */}
         <div className="flex items-center gap-2 mb-8">
           <Trash2 size={24} className="text-brand-orange" />
-          <button 
+          <button
             onClick={handleDeleteBrowsingData}
             className="text-brand-orange font-afacad text-2xl hover:underline"
           >
@@ -219,13 +227,13 @@ export default function SearchHistory() {
       </div>
 
       {/* Modals */}
-      <LoginModal
-        isOpen={isLoginModalOpen}
-        onClose={handleCloseLoginModal}
-      />
       <RegisterModal
         isOpen={isRegisterModalOpen}
         onClose={handleCloseRegisterModal}
+      />
+      <LoginModal
+        isOpen={isLoginModalOpen}
+        onClose={() => setIsLoginModalOpen(false)}
       />
     </div>
   );
