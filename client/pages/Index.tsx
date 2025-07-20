@@ -13,6 +13,7 @@ import LoginModal from "../components/LoginModal";
 import RegisterModal from "../components/RegisterModal";
 import { useAuth } from "../hooks/use-auth";
 import UserAvatar from "../components/UserAvatar";
+import { saveRecentSearch } from "../lib/utils";
 
 const bookCovers = [
   {
@@ -70,15 +71,6 @@ const heroBookCovers = [
 ];
 
 const RECENT_SEARCHES_KEY = "recentSearches";
-
-function saveRecentSearch(query: string) {
-  if (!query.trim()) return;
-  let recent = JSON.parse(localStorage.getItem(RECENT_SEARCHES_KEY) || "[]");
-  recent = recent.filter((q: string) => q.toLowerCase() !== query.toLowerCase());
-  recent.unshift(query);
-  if (recent.length > 10) recent = recent.slice(0, 10);
-  localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(recent));
-}
 
 export default function Index() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -158,13 +150,13 @@ export default function Index() {
   const handleSearch = () => {
     if (searchQuery.trim()) {
       saveRecentSearch(searchQuery.trim());
-      if (user) {
-        const token = localStorage.getItem('token');
+      const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+      if (user && token) {
         fetch('/api/search/history', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+            'Authorization': `Bearer ${token}`,
           },
           body: JSON.stringify({ query: searchQuery.trim() }),
         }).catch(() => {});

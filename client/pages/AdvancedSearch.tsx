@@ -4,6 +4,7 @@ import { Link, useNavigate } from "react-router-dom";
 import LoginModal from "../components/LoginModal";
 import RegisterModal from "../components/RegisterModal";
 import { useAuth } from "../hooks/use-auth";
+import { saveRecentSearch } from "../lib/utils";
 
 export default function AdvancedSearch() {
   const navigate = useNavigate();
@@ -99,6 +100,11 @@ export default function AdvancedSearch() {
       }
     });
     
+    // Save the main search query (e.g., title, author, etc.)
+    const mainQuery = formData.title || formData.author || formData.genre || formData.language || formData.journalTitle || formData.isbn;
+    if (mainQuery && mainQuery.trim()) {
+      saveRecentSearch(mainQuery.trim());
+    }
     // Navigate to search results with parameters
     const queryString = searchParams.toString();
     navigate(`/search${queryString ? `?${queryString}` : ""}`);

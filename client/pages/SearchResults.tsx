@@ -33,6 +33,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
 import LoginModal from "../components/LoginModal";
 import RegisterModal from "../components/RegisterModal";
+import { saveRecentSearch } from "../lib/utils";
 
 // Book interface
 interface Book {
@@ -135,6 +136,9 @@ export default function SearchResults() {
 
   // Load search results
   useEffect(() => {
+    if (query.trim()) {
+      saveRecentSearch(query.trim());
+    }
     performSearch(); // Always perform search, even without query
   }, [query, currentPage, sortBy, language, accessType, contentTypes, debouncedTitleSearch]);
 
