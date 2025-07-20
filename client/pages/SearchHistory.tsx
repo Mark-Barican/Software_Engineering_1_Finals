@@ -7,76 +7,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useAuth } from "../hooks/use-auth";
 import LoginModal from "../components/LoginModal";
 import RegisterModal from "../components/RegisterModal";
+import { useEffect } from "react";
 
-// Mock history data matching the Figma design
-const historyData = [
-  {
-    date: "Today - July 1, 2025",
-    entries: [
-      {
-        id: 1,
-        time: "10:31 AM",
-        description: "the great gatsby - Search Prompt",
-        type: "search",
-        checked: false,
-      },
-      {
-        id: 2,
-        time: "10:33 AM",
-        description: "The Great Gatsby - Book",
-        type: "book",
-        checked: false,
-      },
-      {
-        id: 3,
-        time: "4:14 PM",
-        description: "the great gatsby - Search Prompt",
-        type: "search",
-        checked: false,
-      },
-      {
-        id: 4,
-        time: "4:14 PM",
-        description: "The Great Gatsby - Book",
-        type: "book",
-        checked: false,
-      },
-    ],
-  },
-  {
-    date: "Yesterday - June 30, 2025",
-    entries: [
-      {
-        id: 5,
-        time: "12:34 PM",
-        description: "The Great Gatsby - Book",
-        type: "book",
-        checked: false,
-      },
-      {
-        id: 6,
-        time: "12:37 PM",
-        description: "Sometimes a Great Notion - Book",
-        type: "book",
-        checked: false,
-      },
-      {
-        id: 7,
-        time: "2:31 PM",
-        description: "The Great Gatsby - Book",
-        type: "book",
-        checked: false,
-      },
-      {
-        id: 8,
-        time: "2:42 PM",
-        description: "the great gatsby - Search Prompt",
-        type: "search",
-        checked: false,
-      },
-    ],
-  },
-];
+const RECENT_SEARCHES_KEY = "recentSearches";
 
 const BookIcon = () => (
   <svg
@@ -129,16 +62,32 @@ const SearchIcon = () => (
 export default function SearchHistory() {
   const { user, loading } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
-  const [historyEntries, setHistoryEntries] = useState(historyData);
+  const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
 
-  const handleEntryCheck = (sectionIndex: number, entryIndex: number) => {
-    const newEntries = [...historyEntries];
-    newEntries[sectionIndex].entries[entryIndex].checked =
-      !newEntries[sectionIndex].entries[entryIndex].checked;
-    setHistoryEntries(newEntries);
-  };
+  useEffect(() => {
+    if (user) {
+      // Fetch from backend if logged in
+      const token = localStorage.getItem('token');
+      fetch('/api/search/history', {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (Array.isArray(data)) {
+            setRecentSearches(data.map((entry: any) => entry.query));
+          } else {
+            setRecentSearches([]);
+          }
+        })
+        .catch(() => setRecentSearches([]));
+    } else {
+      // Fallback to localStorage
+      const stored = JSON.parse(localStorage.getItem(RECENT_SEARCHES_KEY) || "[]");
+      setRecentSearches(stored);
+    }
+  }, [user]);
 
   const handleLoginClick = () => setIsLoginModalOpen(true);
   const handleRegisterClick = () => setIsRegisterModalOpen(true);
@@ -147,9 +96,22 @@ export default function SearchHistory() {
 
   const handleDeleteBrowsingData = () => {
     if (window.confirm("Are you sure you want to delete all browsing history? This action cannot be undone.")) {
-      setHistoryEntries([]);
+      if (user) {
+        const token = localStorage.getItem('token');
+        fetch('/api/search/history', {
+          method: 'DELETE',
+          headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+        }).then(() => setRecentSearches([]));
+      } else {
+        localStorage.removeItem(RECENT_SEARCHES_KEY);
+        setRecentSearches([]);
+      }
       alert("Browsing history deleted.");
     }
+  };
+
+  const handleRunSearch = (query: string) => {
+    window.location.href = `/search?q=${encodeURIComponent(query)}`;
   };
 
   return (
@@ -230,44 +192,25 @@ export default function SearchHistory() {
             />
           </div>
         </div>
-
-        {/* History Sections */}
-        <div className="max-w-6xl mx-auto space-y-8">
-          {historyEntries.map((section, sectionIndex) => (
-            <div
-              key={sectionIndex}
-              className="bg-white rounded-lg shadow-lg p-8"
-            >
-              <h2 className="text-4xl font-afacad font-bold text-amber-900 mb-8">
-                {section.date}
-              </h2>
-
-              <div className="space-y-6">
-                {section.entries.map((entry, entryIndex) => (
-                  <div key={entry.id} className="flex items-center gap-6">
-                    <Checkbox
-                      checked={entry.checked}
-                      onCheckedChange={() =>
-                        handleEntryCheck(sectionIndex, entryIndex)
-                      }
-                      className="w-6 h-6 border-2 border-gray-400"
-                    />
-
-                    <div className="text-3xl font-afacad text-gray-500 w-32">
-                      {entry.time}
-                    </div>
-
-                    <div className="flex items-center gap-4">
-                      {entry.type === "book" ? <BookIcon /> : <SearchIcon />}
-                      <span className="text-3xl font-afacad text-brand-text-secondary">
-                        {entry.description}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
+        {/* Recent Searches List */}
+        <div className="max-w-4xl mx-auto space-y-4">
+          {recentSearches.length === 0 ? (
+            <div className="text-2xl text-gray-400 text-center">No recent searches.</div>
+          ) : (
+            recentSearches
+              .filter(q => q.toLowerCase().includes(searchQuery.toLowerCase()))
+              .map((query, idx) => (
+                <div key={idx} className="flex items-center justify-between bg-white rounded-lg shadow p-4">
+                  <span className="text-2xl font-afacad text-brand-text-secondary">{query}</span>
+                  <button
+                    onClick={() => handleRunSearch(query)}
+                    className="px-4 py-2 bg-brand-orange text-white rounded-full font-abhaya text-base hover:bg-brand-orange-light transition-colors"
+                  >
+                    Search Again
+                  </button>
+                </div>
+              ))
+          )}
         </div>
       </div>
 

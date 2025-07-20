@@ -1,6 +1,10 @@
 import { Request, Response } from "express";
 import { Book } from "./admin";
 import { verifyTokenWithSession } from "./auth";
+import SearchHistory from '../models/SearchHistory';
+import User from '../models/User';
+import { Router } from 'express';
+const router = Router();
 
 // GET /api/search - Search books with filters
 export async function searchBooks(req: Request, res: Response) {
@@ -261,3 +265,72 @@ export async function getSearchSuggestions(req: Request, res: Response) {
     res.status(500).json({ message: 'Internal server error' });
   }
 } 
+
+// Add user search history endpoints
+router.post('/history', verifyTokenWithSession, async (req, res) => {
+  try {
+    const userId = (req as any).userId;
+    const { query } = req.body;
+    console.log('POST /api/search/history', { userId, query });
+    console.log('Request body:', req.body);
+
+    if (!query || typeof query !== 'string' || !query.trim()) {
+      console.error('Query missing or invalid in request body');
+      return res.status(400).json({ error: 'Query required' });
+    }
+
+    // Log before user lookup
+    console.log('Looking up user...');
+    const user = await User.findById(String(userId));
+    if (!user) {
+      console.error('User not found for userId:', userId);
+      return res.status(400).json({ error: 'User not found' });
+    }
+    console.log('User found:', user._id);
+
+    // Log before creating search history
+    console.log('Creating search history...');
+    const newHistory = await SearchHistory.create({ userId, query });
+    console.log('Created search history:', newHistory);
+
+    // Keep only the latest 10 searches per user
+    const userHistory = await SearchHistory.find({ userId }).sort({ date: -1 });
+    if (userHistory.length > 10) {
+      const idsToDelete = userHistory.slice(10).map(doc => doc._id);
+      await SearchHistory.deleteMany({ _id: { $in: idsToDelete } });
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error saving search history:', err);
+    res.status(500).json({ error: 'Failed to save search history' });
+  }
+});
+
+router.get('/history', verifyTokenWithSession, async (req, res) => {
+  const userId = (req as any).userId;
+  const history = await SearchHistory.find({ userId }).sort({ date: -1 }).limit(10);
+  res.json(history);
+});
+
+router.delete('/history', verifyTokenWithSession, async (req, res) => {
+  const userId = (req as any).userId;
+  await SearchHistory.deleteMany({ userId });
+  res.json({ success: true });
+});
+
+// TEST ROUTE: Manually create a search history document
+router.post('/history/test', async (req, res) => {
+  try {
+    const { userId, query } = req.body;
+    if (!userId || !query) return res.status(400).json({ error: 'userId and query required' });
+    const user = await User.findById(String(userId));
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    const newHistory = await SearchHistory.create({ userId, query });
+    res.json({ success: true, newHistory });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+export const searchRoutes = router; 

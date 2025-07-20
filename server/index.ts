@@ -9,6 +9,7 @@ import { getLibrarianDashboard, getLibrarianBooks, getBook, createBook as create
 import { getStudentStats, getBooksForStudent, getStudentLoans, borrowBook, returnStudentBook, renewLoan, getStudentReservations, createReservation, cancelReservation, getStudentFines, getStudentNotifications, markNotificationAsRead, submitFeedback, submitBookSuggestion, getStudentProfile } from "./routes/student";
 import { searchBooks, getSearchSuggestions } from "./routes/search";
 import { getBookDetails, getAllBooks } from "./routes/books";
+import { searchRoutes } from './routes/search';
 
 export function createServer() {
   const app = express();
@@ -121,6 +122,7 @@ export function createServer() {
   // Search routes
   app.get("/api/search", searchBooks);
   app.get("/api/search/suggestions", getSearchSuggestions);
+  app.use("/api/search", searchRoutes);
 
   // Book routes
   app.get("/api/books", getAllBooks);
