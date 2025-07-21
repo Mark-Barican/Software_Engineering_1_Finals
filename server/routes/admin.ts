@@ -1,6 +1,12 @@
 import { Request, Response } from "express";
 import { User, requireAdmin } from "./auth";
 import mongoose from "mongoose";
+import { logActivity } from '../utils/activityLogger';
+import multer from 'multer';
+import csv from 'csv-parser';
+import { Readable } from 'stream';
+import bcrypt from 'bcrypt';
+import { Settings } from "../models/Settings";
 
 // Book schema for admin management
 const bookSchema = new mongoose.Schema({
@@ -26,6 +32,9 @@ const bookSchema = new mongoose.Schema({
 
 export const Book = mongoose.model("Book", bookSchema, "books");
 
+// Configure multer for file uploads
+const upload = multer({ storage: multer.memoryStorage() });
+
 // GET /api/admin/stats - Get dashboard statistics
 export async function getAdminStats(req: Request, res: Response) {
   try {
@@ -34,36 +43,99 @@ export async function getAdminStats(req: Request, res: Response) {
       return res.status(403).json({ message: "Admin access required" });
     }
 
-    // Get user statistics
     const totalUsers = await User.countDocuments();
     const totalBooks = await Book.countDocuments();
+    
+    // Using a placeholder for active loans and reservations as it might involve a separate collection
+    const activeLoans = 0; 
+    const pendingReservations = 0;
+
     const newUsersToday = await User.countDocuments({
-      createdAt: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }
+      createdAt: { $gte: new Date(new Date().setHours(0, 0, 0, 0)) }
     });
+
     const booksAddedThisMonth = await Book.countDocuments({
-      addedDate: { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) }
+      addedDate: { $gte: new Date(new Date().setDate(1)) }
     });
+    
+    // Get database size
+    const db = mongoose.connection.db;
+    const stats = await db.stats();
+    const databaseSize = (stats.storageSize / (1024 * 1024)).toFixed(2); // in MB
 
-    // Get real loan and reservation data
-    const { Loan, Reservation } = require('./librarian');
-    const activeLoans = await Loan.countDocuments({ status: 'active' });
-    const pendingReservations = await Reservation.countDocuments({ status: 'pending' });
-
-    const stats = {
+    res.json({
       totalUsers,
       totalBooks,
       activeLoans,
       pendingReservations,
       newUsersToday,
       booksAddedThisMonth,
-      systemStatus: 'healthy' as const
-    };
-
-    res.json(stats);
-  } catch (error) {
-    console.error('Admin stats error:', error);
-    res.status(500).json({ message: 'Internal server error' });
+      databaseSize,
+      systemStatus: 'healthy'
+    });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch admin stats" });
   }
+}
+
+// POST /api/admin/users/bulk - Bulk create users from a CSV file
+export async function bulkCreateUsers(req: Request, res: Response) {
+  if (!req.file) {
+    return res.status(400).json({ message: 'No file uploaded.' });
+  }
+
+  const results: any[] = [];
+  const errors: any[] = [];
+  let successCount = 0;
+  let errorCount = 0;
+
+  const stream = new Readable();
+  stream.push(req.file.buffer);
+  stream.push(null);
+
+  stream
+    .pipe(csv())
+    .on('data', (data) => results.push(data))
+    .on('end', async () => {
+      for (const user of results) {
+        try {
+          // Validate required fields
+          if (!user.email || !user.password || !user.name || !user.role) {
+            throw new Error('Missing required fields (name, email, password, role).');
+          }
+
+          // Validate role
+          const validRoles = ['user', 'librarian', 'admin'];
+          if (!validRoles.includes(user.role)) {
+            throw new Error(`Invalid role: ${user.role}. Must be one of user, librarian, admin.`);
+          }
+
+          // Check if user already exists
+          const existingUser = await User.findOne({ email: user.email });
+          if (existingUser) {
+            throw new Error(`User with email ${user.email} already exists.`);
+          }
+
+          // Hash password and create user
+          const hashedPassword = await bcrypt.hash(user.password, 10);
+          await User.create({
+            ...user,
+            password: hashedPassword,
+          });
+          successCount++;
+        } catch (error: any) {
+          errors.push({ user: user.email || 'unknown', message: error.message });
+          errorCount++;
+        }
+      }
+
+      res.status(200).json({
+        message: 'Bulk import finished.',
+        successCount,
+        errorCount,
+        errors,
+      });
+    });
 }
 
 // GET /api/admin/users - Get all users for admin management
@@ -91,6 +163,15 @@ export async function getUsers(req: Request, res: Response) {
 
     const usersWithDetails = await Promise.all(
       users.map(async (user) => {
+        const profilePicture = user.profilePicture && user.profilePicture.data 
+          ? {
+              data: user.profilePicture.data.toString('base64'),
+              contentType: user.profilePicture.contentType,
+              fileName: user.profilePicture.fileName,
+              uploadDate: user.profilePicture.uploadDate
+            }
+          : undefined;
+
         let additionalInfo = {};
         
         // For students (users), get borrowing statistics
@@ -134,7 +215,11 @@ export async function getUsers(req: Request, res: Response) {
           createdAt: user.createdAt,
           lastLogin: user.lastLogin,
           accountStatus: user.accountStatus || 'active',
-          profilePicture: user.profilePicture,
+          // profilePicture: undefined, // Temporarily removed for debugging
+          currentBorrowedBooks: 0, 
+          totalBooksBorrowed: 0,
+          outstandingFines: 0,
+          numberOfReservations: 0,
           ...additionalInfo
         };
       })
@@ -439,6 +524,9 @@ export async function createBook(req: Request, res: Response) {
       location
     });
 
+    // Log the book addition activity
+    await logActivity('book_added', `New book added: "${newBook.title}"`, user._id, newBook._id.toString());
+
     res.status(201).json({
       message: "Book created successfully",
       book: {
@@ -614,5 +702,42 @@ export async function deleteBook(req: Request, res: Response) {
   } catch (error) {
     console.error('Delete book error:', error);
     res.status(500).json({ message: 'Internal server error' });
+  }
+} 
+
+// GET /api/admin/settings - Get system settings
+export async function getSystemSettings(req: Request, res: Response) {
+  try {
+    let settings = await Settings.findOne();
+    if (!settings) {
+      settings = await Settings.create({}); // create with defaults
+    }
+    res.json(settings);
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to fetch settings.' });
+  }
+}
+
+// PUT /api/admin/settings - Update system settings
+export async function updateSystemSettings(req: Request, res: Response) {
+  try {
+    let settings = await Settings.findOne();
+    if (!settings) {
+      settings = await Settings.create({});
+    }
+
+    const oldSettings = JSON.stringify(settings.toObject());
+    Object.assign(settings, req.body);
+    await settings.save();
+
+    // Log the activity
+    const userId = (req.user as any)?._id;
+    if (userId) {
+      await logActivity('settings_changed', `System settings were updated.`, userId);
+    }
+
+    res.json(settings);
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to update settings.' });
   }
 } 

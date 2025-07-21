@@ -3,6 +3,7 @@ import { User } from "./auth";
 import { Book } from "./admin";
 import { Loan, Fine, Reservation, Notification } from "./librarian";
 import mongoose from "mongoose";
+import { logActivity } from "../utils/activityLogger";
 
 // Feedback Schema
 const feedbackSchema = new mongoose.Schema({
@@ -269,6 +270,9 @@ export async function createReservation(req: Request, res: Response) {
       priority,
       status: 'pending'
     });
+
+    // Log the activity
+    await logActivity('reservation_created', `Reservation created for "${book.title}".`, userId, bookId);
 
     res.status(201).json({
       message: 'Reservation created successfully',

@@ -5,17 +5,17 @@ import { Router } from "express";
 const router = Router();
 
 // Custom endpoint for category counts FIRST
-router.get("/category-counts", async (req, res) => {
+router.get("/genre-counts", async (req, res) => {
   try {
     const counts = await Book.aggregate([
-      { $match: { categories: { $exists: true, $ne: [] } } },
-      { $unwind: "$categories" },
-      { $group: { _id: "$categories", count: { $sum: 1 } } }
+      { $match: { genre: { $exists: true, $ne: "" } } },
+      { $group: { _id: "$genre", count: { $sum: 1 } } },
+      { $sort: { _id: 1 } }
     ]);
     res.json(counts);
   } catch (err) {
-    console.error("Category count aggregation error:", err);
-    res.status(500).json({ error: "Failed to fetch category counts", details: err.message });
+    console.error("Genre count aggregation error:", err);
+    res.status(500).json({ error: "Failed to fetch genre counts", details: err.message });
   }
 });
 

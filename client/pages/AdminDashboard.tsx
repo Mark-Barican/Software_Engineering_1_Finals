@@ -7,9 +7,12 @@ import BookFormModal from "../components/BookFormModal";
 import UserViewModal from "../components/UserViewModal";
 import UserEditModal from "../components/UserEditModal";
 import BookViewModal from "../components/BookViewModal";
+import RolePermissionsModal from "../components/RolePermissionsModal";
+import BulkUserImportModal from '../components/BulkUserImportModal';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
 import { 
   Users, 
@@ -34,7 +37,9 @@ import {
   Database,
   Package,
   AlertCircle,
-  XCircle as OutOfStock
+  XCircle as OutOfStock,
+  DatabaseBackup,
+  Upload
 } from "lucide-react";
 import { PesoSign } from "@/components/ui/button";
 
@@ -46,6 +51,23 @@ interface DashboardStats {
   newUsersToday: number;
   booksAddedThisMonth: number;
   systemStatus: 'healthy' | 'warning' | 'error';
+  databaseSize?: string;
+}
+
+interface Activity {
+  _id: string;
+  type: string;
+  timestamp: string;
+  userId?: {
+    _id: string;
+    name: string;
+    email: string;
+  };
+  bookId?: {
+    _id: string;
+    title: string;
+  };
+  details: string;
 }
 
 interface User {
@@ -107,11 +129,13 @@ export default function AdminDashboard() {
     pendingReservations: 0,
     newUsersToday: 0,
     booksAddedThisMonth: 0,
-    systemStatus: 'healthy'
+    systemStatus: 'healthy',
+    databaseSize: '0 MB'
   });
   const [users, setUsers] = useState<User[]>([]);
   const [books, setBooks] = useState<Book[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activities, setActivities] = useState<Activity[]>([]);
   const [roleFilters, setRoleFilters] = useState<Set<string>>(new Set(['admin', 'librarian', 'user']));
   const [statusFilters, setStatusFilters] = useState<Set<string>>(new Set(['available', 'low-stock', 'out-of-stock']));
   const [imageKey, setImageKey] = useState(Date.now());
@@ -130,6 +154,10 @@ export default function AdminDashboard() {
   // Book view modal states
   const [showBookViewModal, setShowBookViewModal] = useState(false);
   const [selectedBook, setSelectedBook] = useState<any>(null);
+  const [isBackupLoading, setIsBackupLoading] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [showPermissionsModal, setShowPermissionsModal] = useState(false);
+  const [showBulkImportModal, setShowBulkImportModal] = useState(false);
 
   useEffect(() => {
     // Check if user is admin
@@ -180,6 +208,15 @@ export default function AdminDashboard() {
         const booksData = await booksResponse.json();
         setBooks(booksData.books);
         setImageKey(Date.now()); // Refresh image cache
+      }
+
+      // Load recent activities
+      const activityResponse = await fetch('/api/activity?limit=5', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (activityResponse.ok) {
+        const activityData = await activityResponse.json();
+        setActivities(activityData);
       }
 
     } catch (error) {
@@ -311,6 +348,100 @@ export default function AdminDashboard() {
     } catch (error) {
       console.error('Error handling book action:', error);
       toast.error("An error occurred while processing the request");
+    }
+  };
+
+  const handleBackupDatabase = async () => {
+    setIsBackupLoading(true);
+    toast.info("Database backup started. This may take a moment...", {
+      description: "Your download will begin automatically.",
+    });
+
+    try {
+      const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+      if (!token) {
+        toast.error("Authentication error. Please log in again.");
+        return;
+      }
+
+      const response = await fetch('/api/backup/database', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `library-backup-${new Date().toISOString().split('T')[0]}.zip`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+        toast.success("Database backup downloaded successfully!");
+      } else {
+        const error = await response.json();
+        toast.error("Backup failed", {
+          description: error.message || "An unknown error occurred.",
+        });
+      }
+    } catch (error) {
+      console.error('Error backing up database:', error);
+      toast.error("Backup failed", {
+        description: "Could not connect to the server.",
+      });
+    } finally {
+      setIsBackupLoading(false);
+    }
+  };
+
+  const handleExportData = async () => {
+    setIsExporting(true);
+    toast.info("Exporting book data...", {
+      description: "Your download will begin shortly.",
+    });
+
+    try {
+      const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+      if (!token) {
+        toast.error("Authentication error. Please log in again.");
+        return;
+      }
+
+      const response = await fetch('/api/export/books', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `library-books-export-${new Date().toISOString().split('T')[0]}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+        toast.success("Book data exported successfully!");
+      } else {
+        const error = await response.json();
+        toast.error("Export failed", {
+          description: error.message || "An unknown error occurred.",
+        });
+      }
+    } catch (error) {
+      console.error('Error exporting data:', error);
+      toast.error("Export failed", {
+        description: "Could not connect to the server.",
+      });
+    } finally {
+      setIsExporting(false);
     }
   };
 
@@ -623,22 +754,22 @@ export default function AdminDashboard() {
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-3">
-                        <div className="flex items-center gap-3">
-                          <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                          <p className="text-sm text-gray-600">New user registration: john.doe@example.com</p>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                          <p className="text-sm text-gray-600">Book added: "The Great Gatsby"</p>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
-                          <p className="text-sm text-gray-600">Loan request: "1984" by George Orwell</p>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-                          <p className="text-sm text-gray-600">User role updated: jane.smith@university.edu</p>
-                        </div>
+                        {activities.map(activity => (
+                          <div key={activity._id} className="flex items-center gap-3">
+                            <div className={`w-2 h-2 rounded-full ${
+                              activity.type === 'new_user' ? 'bg-green-500' :
+                              activity.type === 'book_added' ? 'bg-blue-500' :
+                              'bg-gray-500'
+                            }`}></div>
+                            <p className="text-sm text-gray-600">{activity.details}</p>
+                            <span className="text-xs text-gray-400 ml-auto">
+                              {new Date(activity.timestamp).toLocaleTimeString()}
+                            </span>
+                          </div>
+                        ))}
+                        {activities.length === 0 && (
+                          <p className="text-sm text-gray-500">No recent activity to display.</p>
+                        )}
                       </div>
                     </CardContent>
                   </Card>
@@ -666,7 +797,7 @@ export default function AdminDashboard() {
                         </div>
                         <div className="flex justify-between items-center">
                           <span className="text-sm text-gray-600">Database size</span>
-                          <span className="font-semibold">127 MB</span>
+                          <span className="font-semibold">{stats.databaseSize} MB</span>
                         </div>
                       </div>
                     </CardContent>
@@ -1151,43 +1282,55 @@ export default function AdminDashboard() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  <div className="p-4 border rounded-lg">
-                    <h3 className="font-medium mb-2">Database Management</h3>
-                    <div className="flex gap-2">
-                      <Button variant="outline" size="sm">
-                        <Database className="w-4 h-4 mr-2" />
+                <div className="grid gap-6">
+                  {/* Database Management Card */}
+                  <div className="flex flex-col gap-2 p-4 border rounded-lg">
+                    <div>
+                      <h3 className="text-lg font-medium">Database Management</h3>
+                      <p className="text-sm text-muted-foreground">Backup and export library data.</p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button variant="outline" size="sm" onClick={() => toast.info("This feature will be available soon.")}>
+                        <DatabaseBackup className="w-4 h-4 mr-2" />
                         Backup Database
                       </Button>
-                      <Button variant="outline" size="sm">
-                        <Download className="w-4 h-4 mr-2" />
+                      <Button variant="outline" size="sm" onClick={() => toast.info("This feature will be available soon.")}>
+                        <Upload className="w-4 h-4 mr-2" />
                         Export Data
                       </Button>
                     </div>
                   </div>
-                  
-                  <div className="p-4 border rounded-lg">
-                    <h3 className="font-medium mb-2">User Management</h3>
-                    <div className="flex gap-2">
-                      <Button variant="outline" size="sm">
+
+                  {/* User Management Card */}
+                  <div className="flex flex-col gap-2 p-4 border rounded-lg">
+                    <div>
+                      <h3 className="text-lg font-medium">User Management</h3>
+                      <p className="text-sm text-muted-foreground">Bulk user import and role permissions.</p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button variant="outline" size="sm" onClick={() => setShowBulkImportModal(true)}>
                         <Users className="w-4 h-4 mr-2" />
                         Bulk User Import
                       </Button>
-                      <Button variant="outline" size="sm">
+                      <Button variant="outline" size="sm" onClick={() => setShowPermissionsModal(true)}>
                         <Shield className="w-4 h-4 mr-2" />
                         Role Permissions
                       </Button>
                     </div>
                   </div>
                   
-                  <div className="p-4 border rounded-lg">
-                    <h3 className="font-medium mb-2">System Configuration</h3>
-                    <div className="flex gap-2">
-                      <Button variant="outline" size="sm" onClick={() => alert('General Settings feature coming soon!')}>
+                  {/* System Configuration Card */}
+                  <div className="flex flex-col gap-2 p-4 border rounded-lg">
+                    <div>
+                      <h3 className="text-lg font-medium">System Configuration</h3>
+                      <p className="text-sm text-muted-foreground">Manage general settings and view activity logs.</p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button variant="outline" size="sm" onClick={() => navigate('/admin/settings')}>
                         <Settings className="w-4 h-4 mr-2" />
                         General Settings
                       </Button>
-                      <Button variant="outline" size="sm" onClick={() => alert('Activity Logs feature coming soon!')}>
+                      <Button variant="outline" size="sm" onClick={() => navigate('/admin/activity-logs')}>
                         <Activity className="w-4 h-4 mr-2" />
                         Activity Logs
                       </Button>
@@ -1267,6 +1410,21 @@ export default function AdminDashboard() {
           setEditingBook(book);
           setBookModalMode('edit');
           setShowBookModal(true);
+        }}
+      />
+
+      {/* Role Permissions Modal */}
+      <RolePermissionsModal
+        isOpen={showPermissionsModal}
+        onClose={() => setShowPermissionsModal(false)}
+      />
+
+      {/* Bulk User Import Modal */}
+      <BulkUserImportModal
+        isOpen={showBulkImportModal}
+        onClose={() => setShowBulkImportModal(false)}
+        onImportSuccess={() => {
+          setTriggerFetch(prev => prev + 1); // Refetch user data
         }}
       />
     </div>

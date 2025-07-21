@@ -19,26 +19,13 @@ interface UserAvatarProps {
 }
 
 export default function UserAvatar({ user, size = 'md', className = '', showName = false }: UserAvatarProps) {
-  const [imageKey, setImageKey] = useState(Date.now());
-
-  // Get profile picture URL with cache busting
-  const getProfilePictureUrl = useCallback((userId: string) => {
-    return `/api/profile/picture/${userId}?t=${imageKey}`;
-  }, [imageKey]);
-
-  // Listen for profile picture updates
-  useEffect(() => {
-    const handleProfilePictureUpdate = (event: CustomEvent) => {
-      if (event.detail.userId === user.id) {
-        setImageKey(Date.now());
-      }
-    };
-
-    window.addEventListener('profilePictureUpdated', handleProfilePictureUpdate as EventListener);
-    return () => {
-      window.removeEventListener('profilePictureUpdated', handleProfilePictureUpdate as EventListener);
-    };
-  }, [user.id]);
+  // Construct the data URL directly from the user prop
+  const getProfilePictureDataUrl = () => {
+    if (user.profilePicture) {
+      return `data:${user.profilePicture.contentType};base64,${user.profilePicture.data}`;
+    }
+    return '';
+  };
 
   // Get initials from name
   const getInitials = (name: string) => {
@@ -70,17 +57,9 @@ export default function UserAvatar({ user, size = 'md', className = '', showName
       <Avatar className={sizeClasses[size]}>
         {user.profilePicture ? (
           <AvatarImage
-            src={getProfilePictureUrl(user.id)}
+            src={getProfilePictureDataUrl()}
             alt={user.name}
             className="object-cover"
-            onError={(e) => {
-              // Hide the image and show fallback on error
-              e.currentTarget.style.display = 'none';
-              const fallback = e.currentTarget.nextElementSibling as HTMLElement;
-              if (fallback) {
-                fallback.style.display = 'flex';
-              }
-            }}
           />
         ) : null}
         <AvatarFallback className={`${fallbackSizeClasses[size]} bg-gradient-to-br from-blue-500 to-indigo-600 text-white font-medium`}>

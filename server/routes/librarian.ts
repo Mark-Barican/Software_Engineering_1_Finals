@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { User, requireLibrarian } from "./auth";
 import { Book } from "./admin";
 import mongoose from "mongoose";
+import { logActivity } from "../utils/activityLogger";
 
 // Loan Schema
 const loanSchema = new mongoose.Schema({
@@ -372,6 +373,9 @@ export async function issueBook(req: Request, res: Response) {
       $inc: { availableCopies: -1 }
     });
 
+    // Log the activity
+    await logActivity('loan_issued', `Book "${book.title}" issued to ${user.name}.`, librarian._id, book._id);
+
     // Populate loan with user and book details
     const populatedLoan = await Loan.findById(loan._id)
       .populate('userId', 'name email userId')
@@ -428,6 +432,12 @@ export async function returnBook(req: Request, res: Response) {
       await Book.findByIdAndUpdate(loan.bookId, {
         $inc: { availableCopies: 1 }
       });
+    }
+
+    // Log the activity
+    const librarianId = (req.user as any)?._id;
+    if (librarianId) {
+      await logActivity('loan_returned', `Book "${(loan.bookId as any).title}" returned by ${(loan.userId as any).name}.`, librarianId, (loan.bookId as any)._id);
     }
 
     // Create fine record if applicable

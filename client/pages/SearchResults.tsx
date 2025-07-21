@@ -134,6 +134,33 @@ export default function SearchResults() {
     filter: searchParams.getAll("filter"),
   };
 
+  useEffect(() => {
+    // This hook syncs the URL search params to the component's state on initial load.
+    const titleFromUrl = searchParams.get("title") || searchParams.get("q") || "";
+    const genresFromUrl = searchParams.getAll("genre");
+    const languageFromUrl = searchParams.get("language") || "Any Language";
+    const accessTypeFromUrl = searchParams.getAll("filter").find(f => ["available", "download", "online"].includes(f)) || "everything";
+    
+    setTitleSearch(titleFromUrl);
+    setLanguage(languageFromUrl);
+    setAccessType(accessTypeFromUrl);
+
+    if (genresFromUrl.length > 0) {
+      const newContentTypes = {
+        fiction: false, nonFiction: false, scienceFiction: false, mystery: false,
+        romance: false, biography: false, history: false, science: false,
+        business: false, youngAdult: false, children: false, poetry: false,
+      };
+      genresFromUrl.forEach(genre => {
+        const key = Object.keys(newContentTypes).find(k => k.toLowerCase() === genre.toLowerCase().replace(/\s/g, ''));
+        if (key) {
+          newContentTypes[key as keyof typeof contentTypes] = true;
+        }
+      });
+      setContentTypes(newContentTypes);
+    }
+  }, [searchParams]);
+
   // Load search results
   useEffect(() => {
     if (query.trim()) {
@@ -141,35 +168,6 @@ export default function SearchResults() {
     }
     performSearch(); // Always perform search, even without query
   }, [query, currentPage, sortBy, language, accessType, contentTypes, debouncedTitleSearch]);
-
-  useEffect(() => {
-    // Initialize sidebar filters from query string
-    const filters = searchParams.getAll("filter");
-    const genres = searchParams.getAll("genre");
-    const lang = searchParams.get("language");
-    const access = filters.find(f => ["available", "download", "online"].includes(f));
-
-    // Map filters to contentTypes
-    setContentTypes(prev => {
-      const updated = { ...prev };
-      // Reset all
-      Object.keys(updated).forEach(k => { updated[k] = false; });
-      // Set those present in filters/genres
-      filters.forEach(f => {
-        if (updated.hasOwnProperty(f)) updated[f] = true;
-      });
-      genres.forEach(g => {
-        // Try to match genre names to contentTypes keys
-        const key = Object.keys(updated).find(k => k.toLowerCase() === g.toLowerCase().replace(/\s/g, ""));
-        if (key) updated[key] = true;
-      });
-      return updated;
-    });
-    // Set language
-    if (lang) setLanguage(lang);
-    // Set access type
-    if (access) setAccessType(access);
-  }, [searchParams]);
 
   const performSearch = async () => {
     // Use subtle loading for real-time search, full loading for other operations
@@ -181,7 +179,7 @@ export default function SearchResults() {
     
     try {
       const params = new URLSearchParams({
-        q: query || '', // Use empty string if no query
+        q: query || titleSearch || '', // Use titleSearch from state as a fallback for q
         page: currentPage.toString(),
         limit: '20'
       });

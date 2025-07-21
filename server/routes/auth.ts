@@ -6,6 +6,7 @@ import crypto from "crypto";
 import multer from "multer";
 import passport from "passport";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
+import { logActivity } from '../utils/activityLogger';
 
 // Helper function to parse user agent and extract device info
 function parseUserAgent(userAgent: string, ipAddress: string) {
@@ -241,6 +242,10 @@ export async function register(req: Request, res: Response) {
       department: department || 'Computer Science'
     });
     console.log("User created successfully:", user._id);
+    
+    // Log the new user registration activity
+    await logActivity('new_user', `New user registered: ${user.email}`, user._id.toString());
+    
     res.json({ 
       success: true, 
       user: { 
@@ -548,7 +553,7 @@ export const requireUser = requireRole(['admin', 'librarian', 'user']);
 
 // Configure multer for file uploads
 const storage = multer.memoryStorage();
-const upload = multer({
+export const upload = multer({
   storage: storage,
   limits: {
     fileSize: 5 * 1024 * 1024, // 5MB limit
@@ -571,31 +576,24 @@ export async function uploadProfilePicture(req: Request, res: Response) {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
-    // Use multer middleware
-    upload.single('profilePicture')(req, res, async (err) => {
-      if (err) {
-        return res.status(400).json({ message: err.message });
+    const file = (req as any).file;
+    if (!file) {
+      return res.status(400).json({ message: "No file uploaded" });
+    }
+
+    // Update user profile picture
+    await User.findByIdAndUpdate(user.id, {
+      profilePicture: {
+        data: file.buffer,
+        contentType: file.mimetype,
+        fileName: file.originalname,
+        uploadDate: new Date()
       }
+    });
 
-      const file = (req as any).file;
-      if (!file) {
-        return res.status(400).json({ message: "No file uploaded" });
-      }
-
-      // Update user profile picture
-      await User.findByIdAndUpdate(user.id, {
-        profilePicture: {
-          data: file.buffer,
-          contentType: file.mimetype,
-          fileName: file.originalname,
-          uploadDate: new Date()
-        }
-      });
-
-      res.json({ 
-        success: true, 
-        message: "Profile picture uploaded successfully" 
-      });
+    res.json({ 
+      success: true, 
+      message: "Profile picture uploaded successfully" 
     });
   } catch (error) {
     console.error("Upload profile picture error:", error);

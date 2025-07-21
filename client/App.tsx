@@ -23,6 +23,8 @@ import { PageLoader } from "./components/LoadingOverlay";
 import PageTransition from "./components/PageTransition";
 import { ErrorBoundary, NetworkStatusIndicator } from "./components/ErrorHandler";
 import GoogleAuthHandler from "./pages/GoogleAuthHandler";
+import GeneralSettings from "./pages/GeneralSettings";
+import ActivityLogs from './pages/ActivityLogs';
 
 const queryClient = new QueryClient();
 
@@ -75,6 +77,8 @@ const App = () => (
                 <Route path="/settings" element={<Settings />} />
                 <Route path="/my-account" element={<PrivateRoute><MyAccount /></PrivateRoute>} />
                 <Route path="/admin" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
+                <Route path="/admin/settings" element={<AdminRoute><GeneralSettings /></AdminRoute>} />
+                <Route path="/admin/activity-logs" element={<AdminRoute><ActivityLogs /></AdminRoute>} />
                 <Route path="/librarian" element={<LibrarianRoute><LibrarianDashboard /></LibrarianRoute>} />
                 <Route path="/student" element={<StudentRoute><StudentDashboard /></StudentRoute>} />
                 <Route path="/reset-password" element={<ResetPassword />} />

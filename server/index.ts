@@ -3,8 +3,8 @@ import cors from "cors";
 import { handleDemo } from "./routes/demo";
 import { getProfile, updateProfile, changePassword, deleteProfile } from "./routes/profile";
 import mongoose from "mongoose";
-import { register, login, forgotPassword, resetPassword, getUserSessions, revokeSession, revokeAllSessions, refreshSession, verifyTokenWithSession, requireAdmin, requireLibrarian, requireUser, uploadProfilePicture, getProfilePicture, removeProfilePicture } from "./routes/auth";
-import { getAdminStats, getUsers, createUser, updateUser, deleteUser, getBooks, createBook, updateBook, deleteBook } from "./routes/admin";
+import { register, login, forgotPassword, resetPassword, getUserSessions, revokeSession, revokeAllSessions, refreshSession, verifyTokenWithSession, requireAdmin, requireLibrarian, requireUser, uploadProfilePicture, getProfilePicture, removeProfilePicture, upload } from "./routes/auth";
+import { getAdminStats, getUsers, createUser, updateUser, deleteUser, getBooks, createBook, updateBook, deleteBook, bulkCreateUsers, getSystemSettings, updateSystemSettings } from "./routes/admin";
 import { getLibrarianDashboard, getLibrarianBooks, getBook, createBook as createLibrarianBook, updateBook as updateLibrarianBook, issueBook, returnBook, getLoans, getOverdueBooks, getReservations, searchUsers, getUserLoans, getUserActivity, updateReservation, createFine, updateFine, getFines, updateBookStatus, sendNotification, getInventoryAudits, createInventoryAudit, resolveInventoryAudit } from "./routes/librarian";
 import { getStudentStats, getBooksForStudent, getStudentLoans, borrowBook, returnStudentBook, renewLoan, getStudentReservations, createReservation, cancelReservation, getStudentFines, getStudentNotifications, markNotificationAsRead, submitFeedback, submitBookSuggestion, getStudentProfile } from "./routes/student";
 import { searchBooks, getSearchSuggestions } from "./routes/search";
@@ -14,6 +14,12 @@ import session from "express-session";
 import passport from "passport";
 import { router as authRouter } from "./routes/auth";
 import booksRouter from "./routes/books";
+import activityRouter from "./routes/activity";
+import backupRouter from "./routes/backup";
+import exportRouter from "./routes/export";
+import multer from "multer";
+
+const upload = multer({ storage: multer.memoryStorage() });
 
 export function createServer() {
   const app = express();
@@ -28,8 +34,13 @@ export function createServer() {
     console.error("MongoDB connection error:", err);
   });
 
-  // Middleware
-  app.use(cors());
+  app.use(
+    cors({
+      origin: "http://localhost:5173",
+      credentials: true,
+    })
+  );
+
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
 
@@ -62,7 +73,7 @@ export function createServer() {
   app.delete("/api/profile", verifyTokenWithSession, deleteProfile);
   
   // Profile picture routes
-  app.post("/api/profile/picture", verifyTokenWithSession, requireUser, uploadProfilePicture);
+  app.post("/api/profile/picture", verifyTokenWithSession, requireUser, upload.single('profilePicture'), uploadProfilePicture);
   app.get("/api/profile/picture/:userId", getProfilePicture);
   app.delete("/api/profile/picture", verifyTokenWithSession, requireUser, removeProfilePicture);
 
@@ -85,12 +96,15 @@ export function createServer() {
   app.get("/api/admin/stats", verifyTokenWithSession, requireAdmin, getAdminStats);
   app.get("/api/admin/users", verifyTokenWithSession, requireAdmin, getUsers);
   app.post("/api/admin/users", verifyTokenWithSession, requireAdmin, createUser);
+  app.post("/api/admin/users/bulk", verifyTokenWithSession, requireAdmin, upload.single('file'), bulkCreateUsers);
   app.put("/api/admin/users/:id", verifyTokenWithSession, requireAdmin, updateUser);
   app.delete("/api/admin/users/:id", verifyTokenWithSession, requireAdmin, deleteUser);
   app.get("/api/admin/books", verifyTokenWithSession, requireAdmin, getBooks);
   app.post("/api/admin/books", verifyTokenWithSession, requireAdmin, createBook);
   app.put("/api/admin/books/:id", verifyTokenWithSession, requireAdmin, updateBook);
   app.delete("/api/admin/books/:id", verifyTokenWithSession, requireAdmin, deleteBook);
+  app.get("/api/admin/settings", verifyTokenWithSession, requireAdmin, getSystemSettings);
+  app.put("/api/admin/settings", verifyTokenWithSession, requireAdmin, updateSystemSettings);
 
   // Librarian routes
   app.get("/api/librarian/dashboard", verifyTokenWithSession, requireLibrarian, getLibrarianDashboard);
@@ -132,8 +146,11 @@ export function createServer() {
   app.get("/api/student/notifications", verifyTokenWithSession, requireUser, getStudentNotifications);
   app.post("/api/student/notifications/:id/read", verifyTokenWithSession, requireUser, markNotificationAsRead);
   app.post("/api/student/feedback", verifyTokenWithSession, requireUser, submitFeedback);
-  app.post("/api/student/suggestions", verifyTokenWithSession, requireUser, submitBookSuggestion);
+  app.post("/api/student/book-suggestion", verifyTokenWithSession, requireUser, submitBookSuggestion);
   app.get("/api/student/profile", verifyTokenWithSession, requireUser, getStudentProfile);
+  
+  // Activity log route
+  app.use("/api/activity", activityRouter);
 
   // Search routes
   app.get("/api/search", searchBooks);
