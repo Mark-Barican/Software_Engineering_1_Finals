@@ -3126,6 +3126,14 @@ router.get("/category-counts", async (req, res) => {
     res.status(500).json({ error: "Failed to fetch category counts", details: err.message });
   }
 });
+router.get("/", async (req, res) => {
+  try {
+    const books = await Book.find();
+    res.json({ books });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch books" });
+  }
+});
 function createServer() {
   const app2 = express__default();
   const MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/library";

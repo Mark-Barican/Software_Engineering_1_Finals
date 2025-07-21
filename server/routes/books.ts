@@ -19,6 +19,16 @@ router.get("/category-counts", async (req, res) => {
   }
 });
 
+// GET /api/books - Get all books
+router.get("/", async (req, res) => {
+  try {
+    const books = await Book.find();
+    res.json({ books });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch books" });
+  }
+});
+
 // GET /api/books/:id - Get book details
 export async function getBookDetails(req: Request, res: Response) {
   try {
